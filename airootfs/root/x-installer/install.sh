@@ -101,19 +101,21 @@ echo "== formatting"
 mkfs.vfat -F32 "$EFI"
 mkfs.btrfs -f "$ROOT_DEV"
 
-echo "== btrfs subvolumes (@, @home, @snapshots)"
+echo "== btrfs subvolumes (@, @home, @snapshots, @xstate)"
 mount "$ROOT_DEV" "$MNT"
 btrfs subvolume create "$MNT/@" >/dev/null
 btrfs subvolume create "$MNT/@home" >/dev/null
 btrfs subvolume create "$MNT/@snapshots" >/dev/null
+btrfs subvolume create "$MNT/@xstate" >/dev/null
 umount "$MNT"
 
 echo "== mounting"
 mount -o "subvol=@,noatime" "$ROOT_DEV" "$MNT"
-mkdir -p "$MNT/boot" "$MNT/home" "$MNT/.snapshots"
+mkdir -p "$MNT/boot" "$MNT/home" "$MNT/.snapshots" "$MNT/var/lib/x"
 mount -o "subvol=@home,noatime" "$ROOT_DEV" "$MNT/home"
 mount -o "subvol=@snapshots,noatime" "$ROOT_DEV" "$MNT/.snapshots"
-chmod 700 "$MNT/.snapshots"
+mount -o "subvol=@xstate,noatime" "$ROOT_DEV" "$MNT/var/lib/x"
+chmod 700 "$MNT/.snapshots" "$MNT/var/lib/x"
 mount "$EFI" "$MNT/boot"
 
 # Package set per profile.
@@ -257,7 +259,8 @@ fi
 # rollbacks and granular restores; see scripts/docs/en/generations.md).
 echo "== first generation"
 if arch-chroot "$MNT" test -x /usr/bin/x; then
-    arch-chroot "$MNT" env X_GEN_CMDLINE="$CMDROOT" x gen new --reason install --label first \
+    arch-chroot "$MNT" env X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ \
+        x gen new --reason install --label first \
         || echo "warning: the first generation could not be created" >&2
 else
     echo "warning: x CLI not found in the target; skipping the first generation" >&2
