@@ -101,9 +101,19 @@ echo "== formatting"
 mkfs.vfat -F32 "$EFI"
 mkfs.btrfs -f "$ROOT_DEV"
 
-echo "== mounting"
+echo "== btrfs subvolumes (@, @home, @snapshots)"
 mount "$ROOT_DEV" "$MNT"
-mkdir -p "$MNT/boot"
+btrfs subvolume create "$MNT/@" >/dev/null
+btrfs subvolume create "$MNT/@home" >/dev/null
+btrfs subvolume create "$MNT/@snapshots" >/dev/null
+umount "$MNT"
+
+echo "== mounting"
+mount -o "subvol=@,noatime" "$ROOT_DEV" "$MNT"
+mkdir -p "$MNT/boot" "$MNT/home" "$MNT/.snapshots"
+mount -o "subvol=@home,noatime" "$ROOT_DEV" "$MNT/home"
+mount -o "subvol=@snapshots,noatime" "$ROOT_DEV" "$MNT/.snapshots"
+chmod 700 "$MNT/.snapshots"
 mount "$EFI" "$MNT/boot"
 
 # Package set per profile.
@@ -151,6 +161,8 @@ fi
 
 echo "== base configuration"
 genfstab -U "$MNT" >> "$MNT/etc/fstab"
+# Volatile /tmp as tmpfs: keeps generation snapshots free of transient files.
+printf 'tmpfs /tmp tmpfs defaults,noatime,mode=1777 0 0\n' >> "$MNT/etc/fstab"
 
 arch-chroot "$MNT" ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
 arch-chroot "$MNT" bash -c "sed -i 's/^#$LOCALE/$LOCALE/' /etc/locale.gen && locale-gen >/dev/null"
@@ -179,7 +191,7 @@ printf '%s:%s\n' "$USER" "$PASS" | arch-chroot "$MNT" chpasswd
 arch-chroot "$MNT" sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
 echo "== provisioning (x-scripts)"
-arch-chroot "$MNT" env X_HW_AUTO=0 x setup
+arch-chroot "$MNT" env X_HW_AUTO=0 X_GEN_SKIP=1 x setup
 arch-chroot "$MNT" runuser -u "$USER" -- env X_HYPRLAND=0 X_HW_AUTO=0 /usr/bin/x setup --user
 
 # Audio stack enabled for all users (pipewire/wireplumber) + network.
@@ -204,8 +216,8 @@ if [[ "$ENC" == "yes" ]]; then
     arch-chroot "$MNT" mkinitcpio -P >/dev/null
 fi
 
-CMDROOT="root=UUID=$(blkid -s UUID -o value "$ROOT_DEV") rw"
-[[ "$ENC" == "yes" ]] && CMDROOT="cryptdevice=UUID=$LUKS_UUID:xroot root=/dev/mapper/xroot rw"
+CMDROOT="root=UUID=$(blkid -s UUID -o value "$ROOT_DEV") rw rootflags=subvol=@"
+[[ "$ENC" == "yes" ]] && CMDROOT="cryptdevice=UUID=$LUKS_UUID:xroot root=/dev/mapper/xroot rw rootflags=subvol=@"
 
 # Apply branding (os-release/GRUB hooks) BEFORE the bootloader step so a LUKS
 # cmdline written afterwards is not clobbered by x-release-apply.
@@ -235,12 +247,20 @@ initrd  /initramfs-linux.img
 options $CMDROOT
 EOF
 else
-    if [[ "$ENC" == "yes" ]]; then
-        arch-chroot "$MNT" bash -c "sed -i 's|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"$CMDROOT\"|' /etc/default/grub"
-    fi
+    arch-chroot "$MNT" bash -c "sed -i 's|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"$CMDROOT\"|' /etc/default/grub"
     arch-chroot "$MNT" grub-install --target=x86_64-efi --efi-directory=/boot --removable --recheck
     arch-chroot "$MNT" grub-install --target=i386-pc --boot-directory=/boot "$DISK"
     arch-chroot "$MNT" grub-mkconfig -o /boot/grub/grub.cfg
+fi
+
+# First generation: snapshot of the installed system + manifest (base for
+# rollbacks and granular restores; see scripts/docs/en/generations.md).
+echo "== first generation"
+if arch-chroot "$MNT" test -x /usr/bin/x; then
+    arch-chroot "$MNT" env X_GEN_CMDLINE="$CMDROOT" x gen new --reason install --label first \
+        || echo "warning: the first generation could not be created" >&2
+else
+    echo "warning: x CLI not found in the target; skipping the first generation" >&2
 fi
 
 echo
