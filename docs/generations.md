@@ -9,8 +9,8 @@ engine, CLI and semantics live in `xlnux/scripts`
 
 ## Disk layout
 
-GPT with a 512M EFI partition and a btrfs root partition (inside LUKS2 when
-encryption is enabled):
+GPT with a 1G EFI partition (room for several generations of boot entries) and
+a btrfs root partition (inside LUKS2 when encryption is enabled):
 
 | Subvolume | Mount | Content |
 |-----------|-------|---------|
@@ -59,6 +59,8 @@ created once, by the installer, after branding and bootloader are in place.
 
 - `btrfs-progs` in the target (already in `packages.x86_64` and the live
   package list).
+- ESP size: 1G is the default in new installs (older 512M installs still work;
+  the engine prunes ESP copies beyond `X_GEN_BOOT_KEEP`, default 3).
 - The payload records generations only when the root filesystem is btrfs; on
   other setups every generation hook is a no-op and `x gen` reports that
   generations are unavailable.

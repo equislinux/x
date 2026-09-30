@@ -75,11 +75,11 @@ trap cleanup EXIT
 echo "== partitioning $DISK"
 sgdisk --zap-all "$DISK"
 if [[ "$BOOT" == "grub" ]]; then
-    sgdisk -n 1:0:+1M -t 1:ef02 -n 2:0:+512M -t 2:ef00 -n 3:0:0 -t 3:8300 "$DISK"
+    sgdisk -n 1:0:+1M -t 1:ef02 -n 2:0:+1G -t 2:ef00 -n 3:0:0 -t 3:8300 "$DISK"
     EFI="$(partdev "$DISK")2"
     ROOTP="$(partdev "$DISK")3"
 else
-    sgdisk -n 1:0:+512M -t 1:ef00 -n 2:0:0 -t 2:8300 "$DISK"
+    sgdisk -n 1:0:+1G -t 1:ef00 -n 2:0:0 -t 2:8300 "$DISK"
     EFI="$(partdev "$DISK")1"
     ROOTP="$(partdev "$DISK")2"
 fi
