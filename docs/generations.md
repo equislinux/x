@@ -1,9 +1,11 @@
 # Generations (installer side)
 
 X Linux uses **btrfs subvolumes** so the provisioning payload can version the
-system: each relevant change creates an immutable snapshot plus a manifest
-(`x gen new`). This document covers only the installer side; the engine and
-commands live in `xlnux/scripts` (`docs/en/generations.md`).
+system: every relevant change records a bootable snapshot plus a manifest
+(`x gen new`), `x gen rollback` switches the default boot and `x gen restore`
+recovers individual paths. This document covers only the installer side; the
+engine, CLI and semantics live in `xlnux/scripts`
+(`docs/en/generations.md`).
 
 ## Disk layout
 
@@ -12,33 +14,43 @@ encryption is enabled):
 
 | Subvolume | Mount | Content |
 |-----------|-------|---------|
-| `@` | `/` | Root tree (writable; the live generation) |
-| `@home` | `/home` | User data (not snapshotted per generation) |
-| `@snapshots` | `/.snapshots` | Read-only generation snapshots (mode 0700) |
+| `@` | `/` | Root tree (writable; the first generation, live subvol `/@`) |
+| `@home` | `/home` | User data (never touched by rollback) |
+| `@snapshots` | `/.snapshots` | Generation snapshots, mode 0700 |
+| `@xstate` | `/var/lib/x` | Shared generation metadata, mode 0700 |
 
-`/etc/fstab` is generated with `genfstab` while all three subvolumes are
-mounted; `/tmp` is appended as tmpfs so snapshots never capture transient
-files.
+`/etc/fstab` is generated with `genfstab` while all subvolumes are mounted;
+`/tmp` is appended as tmpfs so snapshots never capture transient files.
 
 ## Boot
 
 The kernel cmdline (GRUB `GRUB_CMDLINE_LINUX` and the systemd-boot
-`loader/entries/x.conf`) always carries `rootflags=subvol=@`; the root UUID is
-added as usual (`root=UUID=...`, or `cryptdevice=...` + `/dev/mapper/xroot`
-under LUKS).
+`loader/entries/x.conf`) carries `rootflags=subvol=@` for the first generation;
+the root UUID is added as usual (`root=UUID=...`, or `cryptdevice=...` +
+`/dev/mapper/xroot` under LUKS). Later generations are forked from the live
+root into `/.snapshots/<id>` and their fstab is self-patched by the engine, so
+each one boots with `rootflags=subvol=/@snapshots/<id>`.
 
 ## First generation
 
 After the bootloader step the installer runs, inside the target chroot:
 
 ```bash
-X_GEN_CMDLINE="$CMDROOT" x gen new --reason install --label first
+X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ x gen new --reason install --label first
 ```
 
-This creates `/.snapshots/0001` plus `/var/lib/x/generations/0001/` (manifest,
-package list, enabled services and an archived copy of the kernel/initramfs).
+This records `/var/lib/x/generations/0001/` (manifest, package list, enabled
+services, archived kernel/initramfs in the shared `@xstate` subvolume), creates
+the `/.snapshots/0001` snapshot and writes the boot entries:
+
+- systemd-boot: `/boot/loader/entries/x-gen-0001.conf` (+ `x.conf` mirror) and
+  the loader default.
+- GRUB: `/boot/grub/custom.cfg` with `set default=x-gen-0001` and one
+  `menuentry` per kept generation.
+
 `X_GEN_CMDLINE` records the real target cmdline because `/proc/cmdline` inside
-the chroot belongs to the live ISO.
+the chroot belongs to the live ISO; `X_GEN_LIVE_SUBVOL` tells the engine that
+generation 0001 is the live `/@` subvol (not a `/.snapshots` fork).
 
 During installation `x setup` runs with `X_GEN_SKIP=1`: the first generation is
 created once, by the installer, after branding and bootloader are in place.
@@ -47,6 +59,6 @@ created once, by the installer, after branding and bootloader are in place.
 
 - `btrfs-progs` in the target (already in `packages.x86_64` and the live
   package list).
-- The payload creates generations only when the root filesystem is btrfs; on
+- The payload records generations only when the root filesystem is btrfs; on
   other setups every generation hook is a no-op and `x gen` reports that
   generations are unavailable.
