@@ -9,13 +9,17 @@ graphical installer; Calamares was removed).
 2. **Configurator** (`configurator.sh`): selects the disk, hostname, and user
    (UI via `gum`; falls back to plain prompts if unavailable). Writes `/tmp/x-install.json`.
 3. **Installer** (`install.sh`):
-   - Partitions (GPT: EFI 512M + btrfs) and mounts at `/mnt`.
+   - Partitions (GPT: EFI 512M + btrfs; LUKS2 optional) and creates the
+     `@`/`@home`/`@snapshots` subvolumes, mounted at `/mnt`.
    - `pacstrap`: base + live manifest (includes the `[x]` packages).
    - Configures locale/hostname, creates the user, and applies branding.
-   - Provisions with the **`x-scripts`** package: system phases (`x setup`)
-     and user phases (`x setup --user`; the Hyprland setup is deferred to first
-     boot, `X_HYPRLAND=0` during installation).
+   - Provisions with the **`x-scripts`** package: system phases (`x setup`,
+     skipped from creating a generation via `X_GEN_SKIP=1`) and user phases
+     (`x setup --user`; the Hyprland setup is deferred to first boot,
+     `X_HYPRLAND=0` during installation).
    - Installs GRUB with `x` branding.
+   - Creates the **first generation** (`x gen new --reason install`): snapshot
+     base for rollbacks and granular restores (see `generations.md`).
 
 ## Variables
 
