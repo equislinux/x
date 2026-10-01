@@ -260,6 +260,7 @@ fi
 echo "== first generation"
 if arch-chroot "$MNT" test -x /usr/bin/x; then
     arch-chroot "$MNT" env X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ \
+        X_GEN_SUBVOL_PREFIX=/@snapshots \
         x gen new --reason install --label first \
         || echo "warning: the first generation could not be created" >&2
 else
