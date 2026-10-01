@@ -119,7 +119,7 @@ chmod 700 "$MNT/.snapshots" "$MNT/var/lib/x"
 mount "$EFI" "$MNT/boot"
 
 # Package set per profile.
-EXTRA="base base-devel linux linux-firmware sudo networkmanager openssh git jq x-release"
+EXTRA="base base-devel linux linux-firmware sudo networkmanager openssh git jq x-release btrfs-progs"
 # Terminal and audio stack are always installed (work without the Hyprland setup).
 EXTRA="$EXTRA kitty pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm"
 [[ "$BOOT" == "grub" ]] && EXTRA="$EXTRA grub efibootmgr"

@@ -114,9 +114,10 @@ are required; the remaining keys have sensible defaults when absent.
    `/.snapshots` and `/var/lib/x`. `/tmp` is appended to the fstab as tmpfs.
 5. **Package set**:
    - Base set: `base base-devel linux linux-firmware sudo networkmanager
-     openssh git jq x-release kitty pipewire pipewire-pulse pipewire-alsa
-     wireplumber alsa-utils sddm`, plus `grub efibootmgr` for GRUB and
-     `cryptsetup` for LUKS.
+     openssh git jq x-release btrfs-progs kitty pipewire pipewire-pulse
+     pipewire-alsa wireplumber alsa-utils sddm`, plus `grub efibootmgr` for
+     GRUB and `cryptsetup` for LUKS. `btrfs-progs` is required by the
+     generations engine and is installed in every profile.
    - `full` profile: adds every package in the manifest pointed to by
      `X_PKGLIST` (default `/root/x-installer/packages.x86_64`).
    - `core` profile: adds only `vim zsh`.
