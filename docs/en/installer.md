@@ -102,13 +102,16 @@ are required; the remaining keys have sensible defaults when absent.
 1. **Parse and validate** the JSON (`disk`, `hostname`, `username`), require
    root and a real block device.
 2. **Partition** with GPT (`sgdisk --zap-all` first):
-   - `grub`: 1 MiB `bios_grub` partition, 512 MiB EFI partition, rest = root.
-   - `systemd-boot`: 512 MiB EFI partition, rest = root.
+   - `grub`: 1 MiB `bios_grub` partition, 1 GiB EFI partition, rest = root.
+   - `systemd-boot`: 1 GiB EFI partition, rest = root.
+   (1 GiB leaves room for several generations of boot entries.)
 3. **LUKS** (if `encryption=yes`): `cryptsetup luksFormat --type luks2` on the
    root partition (passphrase from `luks_password`, falling back to the user
    password) and open it as `/dev/mapper/xroot`.
 4. **Format and mount**: the EFI partition as FAT32 (`mkfs.vfat -F32`) mounted
-   at `/mnt/boot`, the root (or LUKS mapping) as btrfs mounted at `/mnt`.
+   at `/mnt/boot`; the root (or LUKS mapping) as btrfs with the `@`, `@home`,
+   `@snapshots` and `@xstate` subvolumes mounted at `/`, `/home`,
+   `/.snapshots` and `/var/lib/x`. `/tmp` is appended to the fstab as tmpfs.
 5. **Package set**:
    - Base set: `base base-devel linux linux-firmware sudo networkmanager
      openssh git jq x-release kitty pipewire pipewire-pulse pipewire-alsa
@@ -151,14 +154,21 @@ are required; the remaining keys have sensible defaults when absent.
     overwritten.
 14. **Bootloader**:
     - `grub`: `grub-install` for `x86_64-efi` (removable) and `i386-pc`
-      (booting from the whole disk), then `grub-mkconfig`. For LUKS the
-      `GRUB_CMDLINE_LINUX` is set to
-      `cryptdevice=UUID=<luks-uuid>:xroot root=/dev/mapper/xroot rw`.
+      (booting from the whole disk), then `grub-mkconfig`.
+      `GRUB_CMDLINE_LINUX` always carries the root command line with
+      `rootflags=subvol=@` (plus `cryptdevice=UUID=<luks-uuid>:xroot
+      root=/dev/mapper/xroot` under LUKS).
     - `systemd-boot`: `bootctl --esp-path=/boot install`, a `BOOTX64.EFI`
       removable fallback if needed, and a loader entry
       `X Linux` (UEFI only) with the matching `root=` or `cryptdevice=`
       cmdline.
-15. **Cleanup**: on exit, mounts are unmounted, the LUKS mapping is closed if
+15. **First generation**: inside the chroot,
+    `X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ x gen new --reason install
+    --label first` creates `/.snapshots/0001`, the manifest under
+    `/var/lib/x/generations/0001` and the boot entries (systemd-boot
+    `loader/entries/x-gen-0001.conf`, GRUB `custom.cfg`). This is the base for
+    rollbacks and granular restores; see `generations.md`.
+16. **Cleanup**: on exit, mounts are unmounted, the LUKS mapping is closed if
     open, and the install JSON is removed.
 
 A message tells you the installation is complete; reboot and remove the

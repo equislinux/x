@@ -51,6 +51,7 @@ Related documentation in this repository:
 
 - [Build the ISO and WSL rootfs](building.md)
 - [Text installer](installer.md)
+- [Generations (btrfs snapshots, rollback, restore)](generations.md)
 - [Testing in a VM](vm-testing.md)
 - [Project layout reference](project-layout.md)
 
@@ -63,6 +64,11 @@ Related documentation in this repository:
   base system, provisions with `x-scripts`, and installs a bootloader.
 - **Unattended install.** Kernel cmdline `xauto=1` plus a disk labeled
   `cidata` containing `x-install.json` triggers the autoinstall path.
+- **System generations.** The installer creates `@`/`@home`/`@snapshots`/
+  `@xstate` btrfs subvolumes and a bootable first generation; the payload
+  records bootable snapshots with manifests, rollback and granular restore
+  (`x gen`), plus dotfile generations (`x home`) and pacman hooks. See
+  [Generations](generations.md).
 - **Offline provisioning payload.** The `x-scripts` package and the Hyprland
   config snapshot ship inside the ISO, so provisioning does not depend on
   downloading them during install.

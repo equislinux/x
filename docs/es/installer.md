@@ -106,15 +106,18 @@ están.
 1. **Analizar y validar** el JSON (`disk`, `hostname`, `username`); requiere
    root y un dispositivo de bloque real.
 2. **Particionar** con GPT (`sgdisk --zap-all` primero):
-   - `grub`: partición `bios_grub` de 1 MiB, partición EFI de 512 MiB, resto =
+   - `grub`: partición `bios_grub` de 1 MiB, partición EFI de 1 GiB, resto =
      raíz.
-   - `systemd-boot`: partición EFI de 512 MiB, resto = raíz.
+   - `systemd-boot`: partición EFI de 1 GiB, resto = raíz.
+   (1 GiB deja lugar para varias generaciones de entries de arranque.)
 3. **LUKS** (si `encryption=yes`): `cryptsetup luksFormat --type luks2` sobre
    la partición raíz (passphrase de `luks_password`, con fallback a la
    password del usuario) y apertura como `/dev/mapper/xroot`.
 4. **Formatear y montar**: la partición EFI como FAT32 (`mkfs.vfat -F32`)
-   montada en `/mnt/boot`; la raíz (o el mapeo LUKS) como btrfs montada en
-   `/mnt`.
+   montada en `/mnt/boot`; la raíz (o el mapeo LUKS) como btrfs con los
+   subvolúmenes `@`, `@home`, `@snapshots` y `@xstate` montados en `/`,
+   `/home`, `/.snapshots` y `/var/lib/x`. `/tmp` se agrega al fstab como
+   tmpfs.
 5. **Conjunto de paquetes**:
    - Conjunto base: `base base-devel linux linux-firmware sudo networkmanager
      openssh git jq x-release kitty pipewire pipewire-pulse pipewire-alsa
@@ -159,13 +162,20 @@ están.
     kernel de LUKS escrita después no se sobrescriba.
 14. **Gestor de arranque**:
     - `grub`: `grub-install` para `x86_64-efi` (removable) y `i386-pc`
-      (arranque desde el disco completo) y después `grub-mkconfig`. Con LUKS,
-      `GRUB_CMDLINE_LINUX` se fija a
-      `cryptdevice=UUID=<luks-uuid>:xroot root=/dev/mapper/xroot rw`.
+      (arranque desde el disco completo) y después `grub-mkconfig`.
+      `GRUB_CMDLINE_LINUX` siempre lleva el cmdline de la raíz con
+      `rootflags=subvol=@` (más `cryptdevice=UUID=<luks-uuid>:xroot
+      root=/dev/mapper/xroot` con LUKS).
     - `systemd-boot`: `bootctl --esp-path=/boot install`, un fallback
       removable `BOOTX64.EFI` si hiciera falta y una entrada de arranque
       `X Linux` (solo UEFI) con la línea `root=` o `cryptdevice=` adecuada.
-15. **Limpieza**: al salir se desmontan los sistemas de archivos, se cierra el
+15. **Primera generación**: dentro del chroot,
+    `X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ x gen new --reason install
+    --label first` crea `/.snapshots/0001`, el manifiesto en
+    `/var/lib/x/generations/0001` y las entries de arranque (systemd-boot
+    `loader/entries/x-gen-0001.conf`, GRUB `custom.cfg`). Es la base para
+    rollbacks y restores granulares; ver `generations.md`.
+16. **Limpieza**: al salir se desmontan los sistemas de archivos, se cierra el
     mapeo LUKS si está abierto y se elimina el JSON de instalación.
 
 Un mensaje indica que la instalación ha terminado; reinicia y retira el medio

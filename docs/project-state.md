@@ -26,6 +26,11 @@ This document summarizes the current state of the X Linux project based on repos
 - Installation and provisioning are being reworked around scripts (see the reboot
   roadmap in the workspace root).
 - Post-install automation lives in `airootfs/root/x-postinstall.sh`.
+- **Generations**: the installer creates `@`/`@home`/`@snapshots`/`@xstate`
+  btrfs subvolumes and a bootable first generation; the payload (`x-scripts`)
+  records bootable snapshots with manifests, supports rollback and granular
+  restore, and ships pacman hooks that capture every transaction. See
+  `generations.md`.
 
 ### Build Tooling
 
