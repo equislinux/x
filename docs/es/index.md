@@ -25,7 +25,7 @@ producto de cara al usuario por sí solo. Aporta:
   `@`/`@home`/`@snapshots`/`@xstate` y una primera generación booteable; el
   payload registra snapshots con manifiesto, rollback y restore granular
   (`x gen`), más generaciones de dotfiles (`x home`) y hooks de pacman. Ver
-  [Generaciones](../generations.md).
+  [Generaciones](generations.md).
 
 El ISO usa el flujo estándar de `mkarchiso`. En `pacman.conf` se declara un
 repositorio `[x]` de pacman propio que se usa tanto en la construcción como en
@@ -57,7 +57,7 @@ los repos se renombraron en su momento, por lo que las referencias antiguas a
 Documentación relacionada en este repositorio:
 
 - [Construir el ISO y el rootfs de WSL](building.md)
-- [Generaciones (snapshots btrfs, rollback, restore)](../generations.md)
+- [Generaciones (snapshots btrfs, rollback, restore)](generations.md)
 - [Instalador de texto](installer.md)
 - [Pruebas en una máquina virtual](vm-testing.md)
 - [Referencia de la estructura del proyecto](project-layout.md)
