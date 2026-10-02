@@ -66,7 +66,16 @@ cleanup() {
     rm -f "$MNT/etc/sudoers.d/x-hypr-install" 2>/dev/null || true
     umount -R "$MNT" 2>/dev/null || umount -Rl "$MNT" 2>/dev/null || true
     if [[ -b /dev/mapper/xroot ]]; then
-        cryptsetup close xroot 2>/dev/null || true
+        # udev can keep a transient reference right after unmounting: retry
+        # instead of leaving the mapping open (it would block a re-install).
+        local i
+        for i in 1 2 3 4 5; do
+            cryptsetup close xroot 2>/dev/null && break
+            sleep 1
+        done
+        if [[ -b /dev/mapper/xroot ]]; then
+            dmsetup remove xroot 2>/dev/null || true
+        fi
     fi
     rm -f "${X_INSTALL_JSON:-/tmp/x-install.json}" 2>/dev/null || true
 }
@@ -92,6 +101,8 @@ if [[ "$ENC" == "yes" ]]; then
     [[ -n "$LUKS_PASS" ]] || LUKS_PASS="$PASS"
     echo "== luks2 on $ROOTP"
     printf '%s' "$LUKS_PASS" | cryptsetup luksFormat --type luks2 --batch-mode "$ROOTP"
+    # Idempotent: a stale mapping from a previous run must not abort the install.
+    cryptsetup close xroot 2>/dev/null || true
     printf '%s' "$LUKS_PASS" | cryptsetup open "$ROOTP" xroot
     ROOT_DEV=/dev/mapper/xroot
     LUKS_UUID="$(blkid -s UUID -o value "$ROOTP")"
