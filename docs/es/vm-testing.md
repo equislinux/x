@@ -114,6 +114,19 @@ qemu-system-x86_64 -enable-kvm -m 6144 -smp 4 -cpu host \
 Consulta [Autoinstalación](installer.md#autoinstalación) para las condiciones
 exactas de activación.
 
+Notas de testing desatendido (aprendidas en la validación P0 de 2026-10):
+
+- `xauto=1` tiene que estar en el **cmdline del kernel de la ruta que uses**:
+  para BIOS es `syslinux/archiso_sys-linux.cfg`; para UEFI (bootmode
+  `uefi.grub`) son las entries de `grub/`. Un parche solo en BIOS saltea el
+  autoinstall en UEFI (`autoinstall: no xauto=1; skipping` en el serial).
+- **Apagá el guest limpiamente** (`poweroff`/`reboot` dentro del guest o
+  `quit` del monitor QEMU) antes de matar QEMU. Matarlo puede perder escrituras
+  en page cache del guest y dejar el sistema instalado con metadata en 0 bytes.
+- Capturá el serial (`-serial file:...`) y, si usás `-display none`, agregá
+  `-monitor unix:...,server=on,nowait` para tomar `screendump`s y manejar la
+  consola con `sendkey`.
+
 ## Notas
 
 - Cuando se selecciona **GRUB**, el instalador escribe tanto la ruta de
