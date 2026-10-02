@@ -236,6 +236,18 @@ Notes:
 - `X_HYPRLAND`/`X_HW_AUTO` belong to the `x-scripts` payload; the installer
   sets them when calling `x setup`.
 
+## Live medium vs installed system (credentials)
+
+The live medium is intentionally permissive so it can be used without a
+password: root autologin on tty1, empty root password and sshd with
+`PermitRootLogin yes` + password authentication. **All of that ships only in
+`airootfs`** (the live squashfs).
+
+The installer never copies those files to the target: the installed system
+takes `/etc/shadow` from the `shadow` package (root locked), creates the wheel
+user from the seed and does **not** enable sshd. Keep that rule when adding
+post-install automation: never copy `/etc` from the live into the target.
+
 ## Requirements and caveats
 
 - Installation requires **network access**: `pacstrap` pulls from the official

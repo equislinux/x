@@ -248,6 +248,18 @@ Notas:
 - `X_HYPRLAND`/`X_HW_AUTO` pertenecen al payload `x-scripts`; el instalador
   las fija al llamar a `x setup`.
 
+## Live vs sistema instalado (credenciales)
+
+El medio live es deliberadamente permisivo para poder usarse sin contraseña:
+autologin de root en tty1, password de root vacío y sshd con
+`PermitRootLogin yes` + autenticación por password. **Todo eso vive solo en
+`airootfs`** (el squashfs del live).
+
+El instalador nunca copia esos archivos al destino: el sistema instalado toma
+`/etc/shadow` del paquete `shadow` (root bloqueado), crea el usuario wheel
+desde el seed y **no** habilita sshd. Mantené esa regla al agregar
+automatización post-install: nunca copies `/etc` del live al destino.
+
 ## Requisitos y advertencias
 
 - La instalación requiere **acceso a red**: `pacstrap` descarga desde los
