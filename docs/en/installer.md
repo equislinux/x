@@ -274,7 +274,9 @@ What it does:
    `@`/`@home`/`@snapshots`/`@xstate` exactly as in wipe mode.
 4. Bootloader without touching `EFI/Microsoft/**`:
    - systemd-boot: `bootctl install` on the shared ESP; sd-boot auto-detects
-     the Windows Boot Manager and lists it in the menu.
+     the Windows Boot Manager and lists it in the menu. The pre-existing
+     fallback `EFI/BOOT/BOOTX64.EFI` (possibly Windows') is saved and restored
+     around `bootctl`.
    - GRUB: `grub-install --target=x86_64-efi --bootloader-id=x` plus
      `os-prober` (`GRUB_DISABLE_OS_PROBER=false`) to add the Windows entry.
 5. Keeps the Windows Boot Manager first in the firmware order (best effort via

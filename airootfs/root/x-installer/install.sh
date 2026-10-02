@@ -99,17 +99,20 @@ if [[ "$MODE" == "dualboot" ]]; then
     ptype="$(blkid -p -s PTTYPE -o value "$DISK" 2>/dev/null || true)"
     [[ "$ptype" == "gpt" ]] || { echo "installer: dualboot requires a GPT disk (found: ${ptype:-unknown})" >&2; exit 1; }
 
+    EFI=""
+    ROOTP=""
     if [[ -n "$ESP_OVERRIDE" ]]; then
         EFI="$ESP_OVERRIDE"
         [[ -b "$EFI" ]] || { echo "installer: esp=$EFI is not a block device" >&2; exit 1; }
     else
-        while read -r dev; do
+        # PARTTYPE from lsblk (no blkid cache issues right after sgdisk).
+        while read -r dev parttype; do
             [[ -z "$dev" || "$dev" == "$DISK" ]] && continue
-            if [[ "$(blkid -s PART_ENTRY_TYPE -o value "$dev" 2>/dev/null || true)" == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" ]]; then
+            if [[ "${parttype,,}" == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" ]]; then
                 EFI="$dev"
                 break
             fi
-        done < <(lsblk -ln -o PATH "$DISK" 2>/dev/null)
+        done < <(lsblk -ln -o PATH,PARTTYPE "$DISK" 2>/dev/null)
         [[ -n "$EFI" ]] || { echo "installer: no EFI System Partition found on $DISK (pass esp=...)" >&2; exit 1; }
     fi
 
@@ -297,9 +300,21 @@ fi
 
 echo "== bootloader ($BOOT)"
 if [[ "$BOOT" == "systemd-boot" ]]; then
+    # bootctl also writes the fallback \EFI\BOOT\BOOTX64.EFI; in dualboot that
+    # file may belong to Windows, so save and restore it around bootctl.
+    saved_fallback=""
+    if [[ "$MODE" == "dualboot" && -f "$MNT/boot/EFI/BOOT/BOOTX64.EFI" ]]; then
+        saved_fallback="$(mktemp)"
+        cp -a "$MNT/boot/EFI/BOOT/BOOTX64.EFI" "$saved_fallback"
+    fi
     arch-chroot "$MNT" bootctl --esp-path=/boot install >/dev/null
+    if [[ -n "$saved_fallback" ]]; then
+        cp -a "$saved_fallback" "$MNT/boot/EFI/BOOT/BOOTX64.EFI"
+        rm -f "$saved_fallback"
+        echo "   restored the pre-existing EFI/BOOT/BOOTX64.EFI (left untouched)"
+    fi
     # Ensure a removable fallback exists for firmware that only boots
-    # \EFI\BOOT\BOOTX64.EFI.
+    # \EFI\BOOT\BOOTX64.EFI (wipe mode; in dualboot the existing one wins).
     if [[ ! -f "$MNT/boot/EFI/BOOT/BOOTX64.EFI" ]]; then
         mkdir -p "$MNT/boot/EFI/BOOT"
         cp "$MNT/boot/EFI/systemd/systemd-bootx64.efi" "$MNT/boot/EFI/BOOT/BOOTX64.EFI"
@@ -328,6 +343,26 @@ else
         arch-chroot "$MNT" grub-install --target=i386-pc --boot-directory=/boot "$DISK"
     fi
     arch-chroot "$MNT" grub-mkconfig -o /boot/grub/grub.cfg
+fi
+
+# Firmware entry: bootctl/grub-install can silently skip writing the EFI
+# variable (e.g. when running inside a chroot); make sure it exists. In
+# dualboot this matters most: the fallback may belong to Windows.
+if [[ -d /sys/firmware/efi ]] && command -v efibootmgr >/dev/null 2>&1; then
+    espnum="$(lsblk -no PARTN "$EFI" 2>/dev/null | tr -d ' ')"
+    if [[ -n "$espnum" ]]; then
+        if [[ "$BOOT" == "systemd-boot" ]]; then
+            if ! efibootmgr 2>/dev/null | grep -q 'Linux Boot Manager'; then
+                efibootmgr -c -d "$DISK" -p "$espnum" -L 'Linux Boot Manager' \
+                    -l '\EFI\systemd\systemd-bootx64.efi' >/dev/null 2>&1 || true
+            fi
+        elif [[ "$MODE" == "dualboot" ]]; then
+            if ! efibootmgr 2>/dev/null | grep -q 'X Linux'; then
+                efibootmgr -c -d "$DISK" -p "$espnum" -L 'X Linux' \
+                    -l '\EFI\x\grubx64.efi' >/dev/null 2>&1 || true
+            fi
+        fi
+    fi
 fi
 
 # Dualboot: keep the Windows Boot Manager first in the firmware order while
