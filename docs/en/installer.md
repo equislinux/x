@@ -248,6 +248,42 @@ takes `/etc/shadow` from the `shadow` package (root locked), creates the wheel
 user from the seed and does **not** enable sshd. Keep that rule when adding
 post-install automation: never copy `/etc` from the live into the target.
 
+## Dualboot (planned)
+
+Today `install.sh` wipes the target disk (`sgdisk --zap-all`) and creates a
+fresh GPT. Dualboot mode will install X into **unallocated free space**,
+preserving existing partitions and the Windows bootloader. UEFI only in the
+first iteration (BIOS/MBR dualboot is out of scope).
+
+Proposed config fields:
+
+| Field | Values | Meaning |
+|-------|--------|---------|
+| `mode` | `wipe` (default) / `dualboot` | install strategy |
+| `esp` | partition (optional) | reuse this ESP instead of creating one |
+| `min_size` | GiB (default 20) | minimum free region to accept |
+
+Flow in `dualboot` mode:
+
+1. Validate GPT + UEFI and an existing EFI System Partition (`ef00`); never
+   run `sgdisk --zap-all`.
+2. Pick the largest unallocated region (`sgdisk -F`/`-E`), require
+   `min_size`; create **only** the root partition there
+   (`sgdisk -n N:start:end -t N:8300`). Existing entries are never modified.
+3. Mount the existing ESP at `/mnt/boot`; never format it.
+4. btrfs + `@`/`@home`/`@snapshots`/`@xstate` exactly as in wipe mode.
+5. Bootloader with a unique ID, without replacing Microsoft's files:
+   - GRUB: `grub-install --efi-directory=/boot --bootloader-id=x` +
+     `os-prober` to add the Windows entry.
+   - systemd-boot: `bootctl install` (auto-detects Windows Boot Manager).
+6. Generations keep working: X entries live under `x-gen-<id>`/`custom.cfg`
+   and never overwrite `EFI/Microsoft/**`; the Windows Boot Manager stays the
+   firmware default until the user chooses otherwise.
+
+VM test plan: disk image with GPT + fake ESP (Microsoft files) + a data
+partition + free space; run the installer in dualboot mode; assert original
+partition GUIDs/offsets, ESP contents, both menu entries and X boot.
+
 ## Requirements and caveats
 
 - Installation requires **network access**: `pacstrap` pulls from the official

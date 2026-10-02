@@ -260,6 +260,42 @@ El instalador nunca copia esos archivos al destino: el sistema instalado toma
 desde el seed y **no** habilita sshd. Mantené esa regla al agregar
 automatización post-install: nunca copies `/etc` del live al destino.
 
+## Dualboot (planificado)
+
+Hoy `install.sh` borra el disco destino (`sgdisk --zap-all`) y crea un GPT
+nuevo. El modo dualboot instalará X en el **espacio libre sin asignar**,
+preservando las particiones existentes y el bootloader de Windows. Solo UEFI
+en la primera iteración (BIOS/MBR queda fuera de alcance).
+
+Campos de config propuestos:
+
+| Campo | Valores | Significado |
+|-------|---------|-------------|
+| `mode` | `wipe` (default) / `dualboot` | estrategia de instalación |
+| `esp` | partición (opcional) | reusar esta ESP en vez de crear una |
+| `min_size` | GiB (default 20) | región libre mínima aceptada |
+
+Flujo en modo `dualboot`:
+
+1. Validar GPT + UEFI y una ESP existente (`ef00`); nunca correr
+   `sgdisk --zap-all`.
+2. Elegir la región libre más grande (`sgdisk -F`/`-E`), exigir `min_size` y
+   crear **solo** la partición raíz ahí (`sgdisk -n N:start:end -t N:8300`).
+   Las entradas existentes no se tocan.
+3. Montar la ESP existente en `/mnt/boot`; nunca formatearla.
+4. btrfs + `@`/`@home`/`@snapshots`/`@xstate` igual que en modo wipe.
+5. Bootloader con ID único, sin reemplazar archivos de Microsoft:
+   - GRUB: `grub-install --efi-directory=/boot --bootloader-id=x` +
+     `os-prober` para agregar la entrada de Windows.
+   - systemd-boot: `bootctl install` (auto-detecta Windows Boot Manager).
+6. Las generaciones siguen funcionando: las entries de X viven en
+   `x-gen-<id>`/`custom.cfg` y nunca pisan `EFI/Microsoft/**`; el Windows Boot
+   Manager sigue siendo el default del firmware hasta que el usuario elija.
+
+Plan de test VM: imagen de disco con GPT + ESP falsa (archivos Microsoft) +
+partición de datos + espacio libre; instalar en modo dualboot; asertar GUIDs y
+offsets originales, contenido de la ESP, ambas entradas de menú y boot de X.
+
 ## Requisitos y advertencias
 
 - La instalación requiere **acceso a red**: `pacstrap` descarga desde los
