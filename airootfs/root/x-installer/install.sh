@@ -30,14 +30,24 @@ BOOT="$(jget bootloader)";            BOOT="${BOOT:-grub}"
 ENC="$(jget encryption)";             ENC="${ENC:-no}"
 LUKS_PASS="$(jget luks_password)"
 HYPR="$(jget hyprland)";              HYPR="${HYPR:-no}"
+MODE="$(jget mode)";                  MODE="${MODE:-wipe}"
+ESP_OVERRIDE="$(jget esp)"
+MIN_SIZE="$(jget min_size)";          MIN_SIZE="${MIN_SIZE:-20}"
 
 [[ -n "$DISK" && -n "$HOST" && -n "$USER" ]] || { echo "installer: incomplete JSON" >&2; exit 1; }
+[[ "$MODE" == "wipe" || "$MODE" == "dualboot" ]] || { echo "installer: invalid mode '$MODE' (wipe|dualboot)" >&2; exit 1; }
+[[ "$MIN_SIZE" =~ ^[0-9]+$ ]] || { echo "installer: min_size must be a number of GiB" >&2; exit 1; }
 [[ "$HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || { echo "installer: invalid hostname" >&2; exit 1; }
 [[ "$USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "installer: invalid username" >&2; exit 1; }
 
 if [[ "$DRY" == "1" ]]; then
     echo "install plan:"
-    echo "  disk:      $DISK (will be erased)"
+    if [[ "$MODE" == "dualboot" ]]; then
+        echo "  disk:      $DISK (dualboot: free space only, existing partitions preserved)"
+    else
+        echo "  disk:      $DISK (will be erased)"
+    fi
+    echo "  mode:      $MODE (min free: ${MIN_SIZE} GiB)"
     echo "  hostname:  $HOST"
     echo "  user:      $USER"
     echo "  language:  $LANG_CODE ($LOCALE)  keyboard: $KEYMAP  timezone: $TIMEZONE"
@@ -81,19 +91,61 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "== partitioning $DISK"
-sgdisk --zap-all "$DISK"
-if [[ "$BOOT" == "grub" ]]; then
-    sgdisk -n 1:0:+1M -t 1:ef02 -n 2:0:+1G -t 2:ef00 -n 3:0:0 -t 3:8300 "$DISK"
-    EFI="$(partdev "$DISK")2"
-    ROOTP="$(partdev "$DISK")3"
+echo "== partitioning $DISK (mode: $MODE)"
+if [[ "$MODE" == "dualboot" ]]; then
+    # Install into the largest unallocated region, preserving every existing
+    # partition and the ESP. UEFI only in this first iteration.
+    [[ -d /sys/firmware/efi ]] || { echo "installer: dualboot requires UEFI firmware" >&2; exit 1; }
+    ptype="$(blkid -p -s PTTYPE -o value "$DISK" 2>/dev/null || true)"
+    [[ "$ptype" == "gpt" ]] || { echo "installer: dualboot requires a GPT disk (found: ${ptype:-unknown})" >&2; exit 1; }
+
+    if [[ -n "$ESP_OVERRIDE" ]]; then
+        EFI="$ESP_OVERRIDE"
+        [[ -b "$EFI" ]] || { echo "installer: esp=$EFI is not a block device" >&2; exit 1; }
+    else
+        while read -r dev; do
+            [[ -z "$dev" || "$dev" == "$DISK" ]] && continue
+            if [[ "$(blkid -s PART_ENTRY_TYPE -o value "$dev" 2>/dev/null || true)" == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" ]]; then
+                EFI="$dev"
+                break
+            fi
+        done < <(lsblk -ln -o PATH "$DISK" 2>/dev/null)
+        [[ -n "$EFI" ]] || { echo "installer: no EFI System Partition found on $DISK (pass esp=...)" >&2; exit 1; }
+    fi
+
+    start="$(sgdisk -F "$DISK" 2>/dev/null || true)"
+    end="$(sgdisk -E "$DISK" 2>/dev/null || true)"
+    if ! [[ "$start" =~ ^[0-9]+$ && "$end" =~ ^[0-9]+$ ]] || (( start <= 0 || end <= start )); then
+        echo "installer: no usable free space on $DISK" >&2
+        exit 1
+    fi
+    ssz="$(blockdev --getss "$DISK" 2>/dev/null || echo 512)"
+    free_gib=$(( (end - start + 1) * ssz / 1024 / 1024 / 1024 ))
+    if (( free_gib < MIN_SIZE )); then
+        echo "installer: free region is ${free_gib} GiB, need at least ${MIN_SIZE} GiB (min_size)" >&2
+        exit 1
+    fi
+    echo "   reusing ESP: $EFI (never formatted)"
+    echo "   free region: $(( end - start + 1 )) sectors (~${free_gib} GiB) -> new root partition"
+    sgdisk -n "0:${start}:${end}" -t 0:8300 "$DISK"
+    partnum="$(sgdisk -p "$DISK" | awk '/^[[:space:]]*[0-9]+[[:space:]]/ {n=$1} END {print n}')"
+    ROOTP="$(partdev "$DISK")${partnum}"
+    partprobe "$DISK" || true
+    sleep 2
 else
-    sgdisk -n 1:0:+1G -t 1:ef00 -n 2:0:0 -t 2:8300 "$DISK"
-    EFI="$(partdev "$DISK")1"
-    ROOTP="$(partdev "$DISK")2"
+    sgdisk --zap-all "$DISK"
+    if [[ "$BOOT" == "grub" ]]; then
+        sgdisk -n 1:0:+1M -t 1:ef02 -n 2:0:+1G -t 2:ef00 -n 3:0:0 -t 3:8300 "$DISK"
+        EFI="$(partdev "$DISK")2"
+        ROOTP="$(partdev "$DISK")3"
+    else
+        sgdisk -n 1:0:+1G -t 1:ef00 -n 2:0:0 -t 2:8300 "$DISK"
+        EFI="$(partdev "$DISK")1"
+        ROOTP="$(partdev "$DISK")2"
+    fi
+    partprobe "$DISK" || true
+    sleep 1
 fi
-partprobe "$DISK" || true
-sleep 1
 
 ROOT_DEV="$ROOTP"
 LUKS_UUID=""
@@ -109,7 +161,11 @@ if [[ "$ENC" == "yes" ]]; then
 fi
 
 echo "== formatting"
-mkfs.vfat -F32 "$EFI"
+if [[ "$MODE" == "wipe" ]]; then
+    mkfs.vfat -F32 "$EFI"
+else
+    echo "   keeping the existing ESP unformatted ($EFI)"
+fi
 mkfs.btrfs -f "$ROOT_DEV"
 
 echo "== btrfs subvolumes (@, @home, @snapshots, @xstate)"
@@ -134,6 +190,7 @@ EXTRA="base base-devel linux linux-firmware sudo networkmanager openssh git jq x
 # Terminal and audio stack are always installed (work without the Hyprland setup).
 EXTRA="$EXTRA kitty pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm"
 [[ "$BOOT" == "grub" ]] && EXTRA="$EXTRA grub efibootmgr"
+[[ "$MODE" == "dualboot" && "$BOOT" == "grub" ]] && EXTRA="$EXTRA os-prober"
 [[ "$ENC" == "yes" ]] && EXTRA="$EXTRA cryptsetup"
 if [[ "$PROFILE" == "core" ]]; then
     PKGS="$EXTRA vim zsh"
@@ -261,9 +318,30 @@ options $CMDROOT
 EOF
 else
     arch-chroot "$MNT" bash -c "sed -i 's|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"$CMDROOT\"|' /etc/default/grub"
-    arch-chroot "$MNT" grub-install --target=x86_64-efi --efi-directory=/boot --removable --recheck
-    arch-chroot "$MNT" grub-install --target=i386-pc --boot-directory=/boot "$DISK"
+    if [[ "$MODE" == "dualboot" ]]; then
+        # Unique bootloader-id: never overwrite EFI/Microsoft/**; os-prober
+        # adds the Windows entry to the generated menu.
+        arch-chroot "$MNT" bash -c "grep -q '^GRUB_DISABLE_OS_PROBER=' /etc/default/grub && sed -i 's/^GRUB_DISABLE_OS_PROBER=.*/GRUB_DISABLE_OS_PROBER=false/' /etc/default/grub || echo 'GRUB_DISABLE_OS_PROBER=false' >> /etc/default/grub"
+        arch-chroot "$MNT" grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=x --recheck
+    else
+        arch-chroot "$MNT" grub-install --target=x86_64-efi --efi-directory=/boot --removable --recheck
+        arch-chroot "$MNT" grub-install --target=i386-pc --boot-directory=/boot "$DISK"
+    fi
     arch-chroot "$MNT" grub-mkconfig -o /boot/grub/grub.cfg
+fi
+
+# Dualboot: keep the Windows Boot Manager first in the firmware order while
+# still registering the X entry (best effort; requires efibootmgr).
+if [[ "$MODE" == "dualboot" ]]; then
+    win="$(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\* Windows Boot Manager.*/\1/p' | head -1)"
+    if [[ -n "$win" ]]; then
+        order="$win"
+        for entry in $(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*.*/\1/p'); do
+            [[ "$entry" == "$win" ]] && continue
+            order="$order,$entry"
+        done
+        efibootmgr -o "$order" >/dev/null 2>&1 || true
+    fi
 fi
 
 # First generation: snapshot of the installed system + manifest (base for

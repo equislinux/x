@@ -260,41 +260,41 @@ El instalador nunca copia esos archivos al destino: el sistema instalado toma
 desde el seed y **no** habilita sshd. Mantené esa regla al agregar
 automatización post-install: nunca copies `/etc` del live al destino.
 
-## Dualboot (planificado)
+## Modo dualboot
 
-Hoy `install.sh` borra el disco destino (`sgdisk --zap-all`) y crea un GPT
-nuevo. El modo dualboot instalará X en el **espacio libre sin asignar**,
-preservando las particiones existentes y el bootloader de Windows. Solo UEFI
-en la primera iteración (BIOS/MBR queda fuera de alcance).
+`install.sh` soporta dos modos (`"mode"` en el JSON): `wipe` (default) borra
+el disco y crea un GPT nuevo; `dualboot` instala en la **región libre más
+grande**, preservando todas las particiones existentes y el bootloader de
+Windows. El configurador pregunta el modo.
 
-Campos de config propuestos:
+`dualboot` es UEFI-only en esta iteración y requiere GPT con una ESP
+existente:
 
 | Campo | Valores | Significado |
 |-------|---------|-------------|
-| `mode` | `wipe` (default) / `dualboot` | estrategia de instalación |
-| `esp` | partición (opcional) | reusar esta ESP en vez de crear una |
+| `mode` | `wipe` / `dualboot` | estrategia de instalación |
+| `esp` | partición (opcional) | reusar esta ESP en vez de autodetectar la `ef00` |
 | `min_size` | GiB (default 20) | región libre mínima aceptada |
 
-Flujo en modo `dualboot`:
+Qué hace:
 
-1. Validar GPT + UEFI y una ESP existente (`ef00`); nunca correr
-   `sgdisk --zap-all`.
-2. Elegir la región libre más grande (`sgdisk -F`/`-E`), exigir `min_size` y
-   crear **solo** la partición raíz ahí (`sgdisk -n N:start:end -t N:8300`).
+1. Valida UEFI + GPT + ESP existente; nunca corre `sgdisk --zap-all`.
+2. Toma el bloque libre más grande (`sgdisk -F`/`-E`), verifica `min_size` y
+   crea **solo** la partición raíz ahí (`sgdisk -n 0:start:end -t 0:8300`).
    Las entradas existentes no se tocan.
-3. Montar la ESP existente en `/mnt/boot`; nunca formatearla.
-4. btrfs + `@`/`@home`/`@snapshots`/`@xstate` igual que en modo wipe.
-5. Bootloader con ID único, sin reemplazar archivos de Microsoft:
-   - GRUB: `grub-install --efi-directory=/boot --bootloader-id=x` +
-     `os-prober` para agregar la entrada de Windows.
-   - systemd-boot: `bootctl install` (auto-detecta Windows Boot Manager).
-6. Las generaciones siguen funcionando: las entries de X viven en
-   `x-gen-<id>`/`custom.cfg` y nunca pisan `EFI/Microsoft/**`; el Windows Boot
-   Manager sigue siendo el default del firmware hasta que el usuario elija.
+3. Monta la ESP existente en `/mnt/boot` y nunca la formatea; btrfs +
+   `@`/`@home`/`@snapshots`/`@xstate` igual que en modo wipe.
+4. Bootloader sin tocar `EFI/Microsoft/**`:
+   - systemd-boot: `bootctl install` sobre la ESP compartida; sd-boot
+     autodetecta el Windows Boot Manager y lo lista en el menú.
+   - GRUB: `grub-install --target=x86_64-efi --bootloader-id=x` más
+     `os-prober` (`GRUB_DISABLE_OS_PROBER=false`) para agregar Windows.
+5. Mantiene el Windows Boot Manager primero en el orden del firmware (best
+   effort vía `efibootmgr`), y las generaciones de X nunca pisan archivos de
+   Microsoft.
 
-Plan de test VM: imagen de disco con GPT + ESP falsa (archivos Microsoft) +
-partición de datos + espacio libre; instalar en modo dualboot; asertar GUIDs y
-offsets originales, contenido de la ESP, ambas entradas de menú y boot de X.
+Salvedades: no hay dualboot BIOS/MBR, y encoger una partición existente para
+hacer lugar queda fuera de alcance (el espacio libre ya tiene que existir).
 
 ## Requisitos y advertencias
 
