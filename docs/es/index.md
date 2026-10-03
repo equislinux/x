@@ -70,9 +70,9 @@ Documentación relacionada en este repositorio:
   plan JSON; `install.sh` particiona (GPT/btrfs), ejecuta `pacstrap`,
   configura el sistema base, aprovisiona con `x-scripts` e instala un gestor
   de arranque.
-- **Instalación desatendida.** El parámetro `xauto=1` del kernel más un disco
-  etiquetado como `cidata` con un `x-install.json` activa la ruta de
-  autoinstalación.
+- **Instalación desatendida.** El ISO incluye una entrada de arranque
+  `autoinstall` (hotkey `a`, `xauto=1`) para un disco etiquetado `cidata` con
+  un `x-install.json`.
 - **Payload de aprovisionamiento offline.** El paquete `x-scripts` y la
   instantánea de la configuración de Hyprland viajan dentro del ISO, de modo
   que el aprovisionamiento no depende de descargarlos durante la instalación.

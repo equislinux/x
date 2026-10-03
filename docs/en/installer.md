@@ -197,8 +197,13 @@ The installer supports unattended installation from the live ISO:
 The JSON for an unattended run only requires the base keys, for example:
 
 ```json
-{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no"}
+{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}
 ```
+
+`kernel_params` is optional: extra kernel command-line parameters appended to
+the installed system's cmdline (restricted to a safe character set and
+validated before partitioning). It is useful for headless validation, e.g.
+`"kernel_params":"console=ttyS0"` to keep the serial console after install.
 
 See [Testing in a VM](vm-testing.md) for an example cidata disk.
 

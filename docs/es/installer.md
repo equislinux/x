@@ -207,8 +207,14 @@ El JSON de una ejecución desatendida solo requiere las claves base, por
 ejemplo:
 
 ```json
-{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no"}
+{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}
 ```
+
+`kernel_params` es opcional: parámetros extra que se añaden al cmdline del
+kernel del sistema instalado (restringidos a un conjunto de caracteres seguro
+y validados antes de particionar). Es útil para validación headless, por
+ejemplo `"kernel_params":"console=ttyS0"` para conservar la consola serie tras
+la instalación.
 
 Consulta [Pruebas en una máquina virtual](vm-testing.md) para un ejemplo de
 disco cidata.

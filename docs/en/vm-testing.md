@@ -81,14 +81,37 @@ qemu-system-x86_64 -enable-kvm -m 6144 -smp 4 -cpu host \
 
 ## Unattended install (optional)
 
-To exercise the autoinstall path, provide a small seed disk labeled `cidata`
-with an `x-install.json` and boot the ISO with `xauto=1` appended to the
-kernel command line at the boot menu.
+The ISO ships an **autoinstall** boot entry (hotkey `a`, `xauto=1` plus
+`console=ttyS0`) in both paths: syslinux for BIOS and GRUB for UEFI. Boot that
+entry with a seed disk labeled `cidata` containing `x-install.json`.
+
+### Automated harness (recommended)
+
+`tests/e2e-autoinstall.py` drives the whole flow locally (no CI, no root):
+boots the ISO, presses the hotkey through the QEMU monitor, waits for the
+installer on the serial console, powers off cleanly, boots the installed disk,
+logs in over `ttyS0` and asserts `x gen status` (running/default `0001`) and
+`x gen verify`.
+
+```bash
+python3 tests/e2e-autoinstall.py --mode uefi
+python3 tests/e2e-autoinstall.py --mode bios
+python3 tests/e2e-autoinstall.py --mode uefi --profile full --timeout 5400
+```
+
+Artifacts (disk, serial and QEMU logs) land in `../tmp/e2e/`. The seed JSON it
+generates includes `"kernel_params":"console=ttyS0"` so the installed system
+also exposes its console on the serial port.
+
+### Manual seed disk
+
+To exercise the path by hand, provide the seed disk and select the
+**autoinstall** entry at the menu (or press `a`).
 
 ```bash
 SEED=/tmp/cidata
 rm -rf "$SEED" && mkdir -p "$SEED"
-printf '{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no"}\n' \
+printf '{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}\n' \
   > "$SEED/x-install.json"
 
 qemu-img create -f raw /home/x0z/cidata.img 64M
@@ -96,8 +119,8 @@ mkfs.vfat -n cidata /home/x0z/cidata.img
 mcopy -i /home/x0z/cidata.img "$SEED/x-install.json" ::x-install.json
 ```
 
-Then add the seed disk to the ISO boot command and pass `xauto=1` to the
-kernel:
+Then add the seed disk to the ISO boot command and select the autoinstall
+entry (`xauto=1` is already part of its kernel command line):
 
 ```bash
 qemu-system-x86_64 -enable-kvm -m 6144 -smp 4 -cpu host \
@@ -112,10 +135,10 @@ qemu-system-x86_64 -enable-kvm -m 6144 -smp 4 -cpu host \
 
 Unattended-testing notes (learned in the 2026-10 P0 validation):
 
-- `xauto=1` must be in the **kernel cmdline of the boot path you use**: for
-  BIOS it is `syslinux/archiso_sys-linux.cfg`; for UEFI (bootmode
-  `uefi.grub`) it is the `grub/` entries. A BIOS-only patch silently skips the
-  autoinstall on UEFI (`autoinstall: no xauto=1; skipping` in the serial log).
+- `xauto=1` lives in the dedicated **autoinstall** entry of each bootloader:
+  syslinux (BIOS) and `grub/` (UEFI). Selecting the default entry silently
+  skips the autoinstall (`autoinstall: no xauto=1; skipping` in the serial
+  log).
 - **Shut the guest down cleanly** (`poweroff`/`reboot` inside the guest, or the
   QEMU monitor `quit`) before killing QEMU. Killing the process can drop
   page-cache writes inside the guest and leave the installed system with

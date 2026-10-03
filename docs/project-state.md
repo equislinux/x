@@ -16,7 +16,7 @@ This document summarizes the current state of the X Linux project based on repos
 ### Identity and Branding
 
 - System identity files are present in `airootfs/etc/` (including `os-release` and `motd`).
-- Bootloader branding assets and config are present (`grub/`, `syslinux/`, `efiboot/`).
+- Bootloader branding assets and config are present (`grub/`, `syslinux/`), one per firmware (`bios.syslinux` + `uefi.grub`).
 - Desktop-related branding automation exists in post-install scripts under `airootfs/root/`.
 
 ### Installation and Automation

@@ -33,10 +33,15 @@ HYPR="$(jget hyprland)";              HYPR="${HYPR:-no}"
 MODE="$(jget mode)";                  MODE="${MODE:-wipe}"
 ESP_OVERRIDE="$(jget esp)"
 MIN_SIZE="$(jget min_size)";          MIN_SIZE="${MIN_SIZE:-20}"
+KERNEL_PARAMS="$(jget kernel_params)"
 
 [[ -n "$DISK" && -n "$HOST" && -n "$USER" ]] || { echo "installer: incomplete JSON" >&2; exit 1; }
 [[ "$MODE" == "wipe" || "$MODE" == "dualboot" ]] || { echo "installer: invalid mode '$MODE' (wipe|dualboot)" >&2; exit 1; }
 [[ "$MIN_SIZE" =~ ^[0-9]+$ ]] || { echo "installer: min_size must be a number of GiB" >&2; exit 1; }
+if [[ -n "$KERNEL_PARAMS" && ! "$KERNEL_PARAMS" =~ ^[A-Za-z0-9_=.,:/@%+-]+([[:space:]][A-Za-z0-9_=.,:/@%+-]+)*$ ]]; then
+    echo "installer: kernel_params contains unsupported characters" >&2
+    exit 1
+fi
 [[ "$HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || { echo "installer: invalid hostname" >&2; exit 1; }
 [[ "$USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "installer: invalid username" >&2; exit 1; }
 
@@ -54,6 +59,7 @@ if [[ "$DRY" == "1" ]]; then
     echo "  profile:   $PROFILE"
     echo "  bootloader:$BOOT"
     echo "  encryption:$ENC   hyprland:$HYPR"
+    echo "  extra kernel params: ${KERNEL_PARAMS:-none}"
     exit 0
 fi
 
@@ -291,6 +297,7 @@ fi
 
 CMDROOT="root=UUID=$(blkid -s UUID -o value "$ROOT_DEV") rw rootflags=subvol=@"
 [[ "$ENC" == "yes" ]] && CMDROOT="cryptdevice=UUID=$LUKS_UUID:xroot root=/dev/mapper/xroot rw rootflags=subvol=@"
+[[ -n "$KERNEL_PARAMS" ]] && CMDROOT="$CMDROOT $KERNEL_PARAMS"
 
 # Apply branding (os-release/GRUB hooks) BEFORE the bootloader step so a LUKS
 # cmdline written afterwards is not clobbered by x-release-apply.

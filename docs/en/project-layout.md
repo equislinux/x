@@ -11,7 +11,6 @@ under `docs/`.
 ```text
 x/  (xlnux/x)
 |-- airootfs/                  # root filesystem overlay for the ISO/rootfs
-|-- efiboot/                   # systemd-boot assets (loader.conf, entries)
 |-- grub/                      # GRUB config used on the ISO (grub.cfg, loopback.cfg)
 |-- syslinux/                  # Syslinux boot config and assets
 |-- .github/                   # workflows and scripts (roadmap-issue sync)
@@ -106,7 +105,10 @@ The text installer shipped in the live image:
 |-----------|---------|
 | `grub/` | `grub.cfg`, `loopback.cfg` used on the ISO (UEFI GRUB boot). |
 | `syslinux/` | Syslinux configuration and splash for BIOS boot of the ISO. |
-| `efiboot/` | systemd-boot `loader.conf` and entries used when booting the ISO under UEFI. |
+
+The ISO boot modes are `bios.syslinux` + `uefi.grub` (`profiledef.sh`), so
+there is a single bootloader per firmware. The `autoinstall` menu entry
+(hotkey `a`) exists in both paths with `xauto=1 console=ttyS0`.
 
 The bootloader installed *into the target system* by `install.sh` is separate
 from these ISO boot assets: GRUB (BIOS + UEFI) or systemd-boot (UEFI only).

@@ -62,8 +62,8 @@ Related documentation in this repository:
 - **Text installer.** `configurator.sh` collects options and writes a JSON
   plan; `install.sh` partitions (GPT/btrfs), runs `pacstrap`, configures the
   base system, provisions with `x-scripts`, and installs a bootloader.
-- **Unattended install.** Kernel cmdline `xauto=1` plus a disk labeled
-  `cidata` containing `x-install.json` triggers the autoinstall path.
+- **Unattended install.** The ISO ships an `autoinstall` boot entry (hotkey
+  `a`, `xauto=1`) for a disk labeled `cidata` containing `x-install.json`.
 - **System generations.** The installer creates `@`/`@home`/`@snapshots`/
   `@xstate` btrfs subvolumes and a bootable first generation; the payload
   records bootable snapshots with manifests, rollback and granular restore

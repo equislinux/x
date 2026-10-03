@@ -8,4 +8,6 @@ pacman-key --populate archlinux
 systemctl enable x-autoinstall.service >/dev/null 2>&1 || true
 
 # Network in the live environment (DHCP) for the installer and rescue.
+# NetworkManager is the single manager: the stock iwd/networkd symlinks were
+# removed so two managers do not fight over the same NIC.
 systemctl enable NetworkManager.service >/dev/null 2>&1 || true

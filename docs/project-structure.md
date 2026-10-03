@@ -7,7 +7,6 @@ This document describes the repository composition and the role of key files and
 ```text
 x/
 ├── airootfs/                  # Root filesystem overlay copied into the image/rootfs
-├── efiboot/                   # systemd-boot assets and entries
 ├── grub/                      # GRUB configuration files
 ├── syslinux/                  # Syslinux boot configuration and assets
 ├── .github/                   # CI/workflow automation

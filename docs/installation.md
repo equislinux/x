@@ -27,7 +27,8 @@ graphical installer; Calamares was removed).
 - `script=<url|path>` on cmdline: automated installation (no configurator).
 - `X_DRY=1`: shows the plan without touching anything.
 - `X_SKIP_INSTALLER=1`: do not launch the installer at boot.
-- `X_PKGLIST`: alternative package manifest (default `/run/archiso/...`).
+- `X_PKGLIST`: alternative package manifest (default
+  `/root/x-installer/packages.x86_64`, used by the `full` profile).
 
 ## Notes
 
