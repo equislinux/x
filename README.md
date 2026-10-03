@@ -110,7 +110,7 @@
   <li><a href="./docs/build-iso.md">Build ISO Guide</a></li>
   <li><a href="./docs/build-wsl.md">Build WSL Guide</a></li>
   <li><a href="./docs/x-repository.md">X Repository Guide</a></li>
-  <li><a href="./docs/default-installation.md">Default Installation Guide</a></li>
+  <li><a href="./docs/installation.md">Installation Guide</a></li>
   <li><a href="./WSL_GUIDE.md">Legacy WSL Guide</a></li>
   <li><a href="./ROADMAP.md">Roadmap</a></li>
   <li><a href="./CODE_OF_CONDUCT.md">Code of Conduct</a></li>

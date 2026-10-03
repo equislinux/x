@@ -27,6 +27,13 @@ while [[ -z "$DISK" ]]; do
     DISK="${DISK%% *}"
 done
 
+# Install mode: wipe the disk or install into its free space (dualboot).
+MODE=""
+select_one MODE "Install mode" \
+    "Wipe the disk (delete everything)" \
+    "Dualboot (use free space, keep existing OS)"
+[[ "$MODE" == "Dualboot (use free space, keep existing OS)" ]] && MODE="dualboot" || MODE="wipe"
+
 # Language -> system locale.
 LANG_OPTIONS=("English" "Español" "Deutsch" "Français")
 LANG_LABEL=""
@@ -117,18 +124,25 @@ HYPR="no"
 confirm_yes "Install the Hyprland setup during installation (needs network)?" n && HYPR="yes"
 
 if [[ "$DRY" == "1" ]]; then
-    printf '{"disk":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","encryption":"%s","hyprland":"%s"}\n' \
-        "$DISK" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$ENC" "$HYPR"
+    printf '{"disk":"%s","mode":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","encryption":"%s","hyprland":"%s"}\n' \
+        "$DISK" "$MODE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$ENC" "$HYPR"
     exit 0
 fi
 
-if ! confirm_yes "WARNING: everything on $DISK will be erased. Continue?" n; then
-    echo "configurator: cancelled, dropping to a shell"
-    exit 1
+if [[ "$MODE" == "dualboot" ]]; then
+    if ! confirm_yes "Dualboot: X will be installed into the free space of $DISK; existing partitions and the ESP are preserved. Continue?" n; then
+        echo "configurator: cancelled, dropping to a shell"
+        exit 1
+    fi
+else
+    if ! confirm_yes "WARNING: everything on $DISK will be erased. Continue?" n; then
+        echo "configurator: cancelled, dropping to a shell"
+        exit 1
+    fi
 fi
 
 cat > "$OUT" <<EOF
-{"disk":"$DISK","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","bootloader":"$BOOT","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR"}
+{"disk":"$DISK","mode":"$MODE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","bootloader":"$BOOT","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR"}
 EOF
 chmod 600 "$OUT"
 echo "configuration written to $OUT"

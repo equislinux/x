@@ -30,20 +30,36 @@ BOOT="$(jget bootloader)";            BOOT="${BOOT:-grub}"
 ENC="$(jget encryption)";             ENC="${ENC:-no}"
 LUKS_PASS="$(jget luks_password)"
 HYPR="$(jget hyprland)";              HYPR="${HYPR:-no}"
+MODE="$(jget mode)";                  MODE="${MODE:-wipe}"
+ESP_OVERRIDE="$(jget esp)"
+MIN_SIZE="$(jget min_size)";          MIN_SIZE="${MIN_SIZE:-20}"
+KERNEL_PARAMS="$(jget kernel_params)"
 
 [[ -n "$DISK" && -n "$HOST" && -n "$USER" ]] || { echo "installer: incomplete JSON" >&2; exit 1; }
+[[ "$MODE" == "wipe" || "$MODE" == "dualboot" ]] || { echo "installer: invalid mode '$MODE' (wipe|dualboot)" >&2; exit 1; }
+[[ "$MIN_SIZE" =~ ^[0-9]+$ ]] || { echo "installer: min_size must be a number of GiB" >&2; exit 1; }
+if [[ -n "$KERNEL_PARAMS" && ! "$KERNEL_PARAMS" =~ ^[A-Za-z0-9_=.,:/@%+-]+([[:space:]][A-Za-z0-9_=.,:/@%+-]+)*$ ]]; then
+    echo "installer: kernel_params contains unsupported characters" >&2
+    exit 1
+fi
 [[ "$HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]] || { echo "installer: invalid hostname" >&2; exit 1; }
 [[ "$USER" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || { echo "installer: invalid username" >&2; exit 1; }
 
 if [[ "$DRY" == "1" ]]; then
     echo "install plan:"
-    echo "  disk:      $DISK (will be erased)"
+    if [[ "$MODE" == "dualboot" ]]; then
+        echo "  disk:      $DISK (dualboot: free space only, existing partitions preserved)"
+    else
+        echo "  disk:      $DISK (will be erased)"
+    fi
+    echo "  mode:      $MODE (min free: ${MIN_SIZE} GiB)"
     echo "  hostname:  $HOST"
     echo "  user:      $USER"
     echo "  language:  $LANG_CODE ($LOCALE)  keyboard: $KEYMAP  timezone: $TIMEZONE"
     echo "  profile:   $PROFILE"
     echo "  bootloader:$BOOT"
     echo "  encryption:$ENC   hyprland:$HYPR"
+    echo "  extra kernel params: ${KERNEL_PARAMS:-none}"
     exit 0
 fi
 
@@ -66,25 +82,79 @@ cleanup() {
     rm -f "$MNT/etc/sudoers.d/x-hypr-install" 2>/dev/null || true
     umount -R "$MNT" 2>/dev/null || umount -Rl "$MNT" 2>/dev/null || true
     if [[ -b /dev/mapper/xroot ]]; then
-        cryptsetup close xroot 2>/dev/null || true
+        # udev can keep a transient reference right after unmounting: retry
+        # instead of leaving the mapping open (it would block a re-install).
+        local i
+        for i in 1 2 3 4 5; do
+            cryptsetup close xroot 2>/dev/null && break
+            sleep 1
+        done
+        if [[ -b /dev/mapper/xroot ]]; then
+            dmsetup remove xroot 2>/dev/null || true
+        fi
     fi
     rm -f "${X_INSTALL_JSON:-/tmp/x-install.json}" 2>/dev/null || true
 }
 trap cleanup EXIT
 
-echo "== partitioning $DISK"
-sgdisk --zap-all "$DISK"
-if [[ "$BOOT" == "grub" ]]; then
-    sgdisk -n 1:0:+1M -t 1:ef02 -n 2:0:+512M -t 2:ef00 -n 3:0:0 -t 3:8300 "$DISK"
-    EFI="$(partdev "$DISK")2"
-    ROOTP="$(partdev "$DISK")3"
+echo "== partitioning $DISK (mode: $MODE)"
+if [[ "$MODE" == "dualboot" ]]; then
+    # Install into the largest unallocated region, preserving every existing
+    # partition and the ESP. UEFI only in this first iteration.
+    [[ -d /sys/firmware/efi ]] || { echo "installer: dualboot requires UEFI firmware" >&2; exit 1; }
+    ptype="$(blkid -p -s PTTYPE -o value "$DISK" 2>/dev/null || true)"
+    [[ "$ptype" == "gpt" ]] || { echo "installer: dualboot requires a GPT disk (found: ${ptype:-unknown})" >&2; exit 1; }
+
+    EFI=""
+    ROOTP=""
+    if [[ -n "$ESP_OVERRIDE" ]]; then
+        EFI="$ESP_OVERRIDE"
+        [[ -b "$EFI" ]] || { echo "installer: esp=$EFI is not a block device" >&2; exit 1; }
+    else
+        # PARTTYPE from lsblk (no blkid cache issues right after sgdisk).
+        while read -r dev parttype; do
+            [[ -z "$dev" || "$dev" == "$DISK" ]] && continue
+            if [[ "${parttype,,}" == "c12a7328-f81f-11d2-ba4b-00a0c93ec93b" ]]; then
+                EFI="$dev"
+                break
+            fi
+        done < <(lsblk -ln -o PATH,PARTTYPE "$DISK" 2>/dev/null)
+        [[ -n "$EFI" ]] || { echo "installer: no EFI System Partition found on $DISK (pass esp=...)" >&2; exit 1; }
+    fi
+
+    start="$(sgdisk -F "$DISK" 2>/dev/null || true)"
+    end="$(sgdisk -E "$DISK" 2>/dev/null || true)"
+    if ! [[ "$start" =~ ^[0-9]+$ && "$end" =~ ^[0-9]+$ ]] || (( start <= 0 || end <= start )); then
+        echo "installer: no usable free space on $DISK" >&2
+        exit 1
+    fi
+    ssz="$(blockdev --getss "$DISK" 2>/dev/null || echo 512)"
+    free_gib=$(( (end - start + 1) * ssz / 1024 / 1024 / 1024 ))
+    if (( free_gib < MIN_SIZE )); then
+        echo "installer: free region is ${free_gib} GiB, need at least ${MIN_SIZE} GiB (min_size)" >&2
+        exit 1
+    fi
+    echo "   reusing ESP: $EFI (never formatted)"
+    echo "   free region: $(( end - start + 1 )) sectors (~${free_gib} GiB) -> new root partition"
+    sgdisk -n "0:${start}:${end}" -t 0:8300 "$DISK"
+    partnum="$(sgdisk -p "$DISK" | awk '/^[[:space:]]*[0-9]+[[:space:]]/ {n=$1} END {print n}')"
+    ROOTP="$(partdev "$DISK")${partnum}"
+    partprobe "$DISK" || true
+    sleep 2
 else
-    sgdisk -n 1:0:+512M -t 1:ef00 -n 2:0:0 -t 2:8300 "$DISK"
-    EFI="$(partdev "$DISK")1"
-    ROOTP="$(partdev "$DISK")2"
+    sgdisk --zap-all "$DISK"
+    if [[ "$BOOT" == "grub" ]]; then
+        sgdisk -n 1:0:+1M -t 1:ef02 -n 2:0:+1G -t 2:ef00 -n 3:0:0 -t 3:8300 "$DISK"
+        EFI="$(partdev "$DISK")2"
+        ROOTP="$(partdev "$DISK")3"
+    else
+        sgdisk -n 1:0:+1G -t 1:ef00 -n 2:0:0 -t 2:8300 "$DISK"
+        EFI="$(partdev "$DISK")1"
+        ROOTP="$(partdev "$DISK")2"
+    fi
+    partprobe "$DISK" || true
+    sleep 1
 fi
-partprobe "$DISK" || true
-sleep 1
 
 ROOT_DEV="$ROOTP"
 LUKS_UUID=""
@@ -92,25 +162,44 @@ if [[ "$ENC" == "yes" ]]; then
     [[ -n "$LUKS_PASS" ]] || LUKS_PASS="$PASS"
     echo "== luks2 on $ROOTP"
     printf '%s' "$LUKS_PASS" | cryptsetup luksFormat --type luks2 --batch-mode "$ROOTP"
+    # Idempotent: a stale mapping from a previous run must not abort the install.
+    cryptsetup close xroot 2>/dev/null || true
     printf '%s' "$LUKS_PASS" | cryptsetup open "$ROOTP" xroot
     ROOT_DEV=/dev/mapper/xroot
     LUKS_UUID="$(blkid -s UUID -o value "$ROOTP")"
 fi
 
 echo "== formatting"
-mkfs.vfat -F32 "$EFI"
+if [[ "$MODE" == "wipe" ]]; then
+    mkfs.vfat -F32 "$EFI"
+else
+    echo "   keeping the existing ESP unformatted ($EFI)"
+fi
 mkfs.btrfs -f "$ROOT_DEV"
 
-echo "== mounting"
+echo "== btrfs subvolumes (@, @home, @snapshots, @xstate)"
 mount "$ROOT_DEV" "$MNT"
-mkdir -p "$MNT/boot"
+btrfs subvolume create "$MNT/@" >/dev/null
+btrfs subvolume create "$MNT/@home" >/dev/null
+btrfs subvolume create "$MNT/@snapshots" >/dev/null
+btrfs subvolume create "$MNT/@xstate" >/dev/null
+umount "$MNT"
+
+echo "== mounting"
+mount -o "subvol=@,noatime" "$ROOT_DEV" "$MNT"
+mkdir -p "$MNT/boot" "$MNT/home" "$MNT/.snapshots" "$MNT/var/lib/x"
+mount -o "subvol=@home,noatime" "$ROOT_DEV" "$MNT/home"
+mount -o "subvol=@snapshots,noatime" "$ROOT_DEV" "$MNT/.snapshots"
+mount -o "subvol=@xstate,noatime" "$ROOT_DEV" "$MNT/var/lib/x"
+chmod 700 "$MNT/.snapshots" "$MNT/var/lib/x"
 mount "$EFI" "$MNT/boot"
 
 # Package set per profile.
-EXTRA="base base-devel linux linux-firmware sudo networkmanager openssh git jq x-release"
+EXTRA="base base-devel linux linux-firmware sudo networkmanager openssh git jq x-release btrfs-progs"
 # Terminal and audio stack are always installed (work without the Hyprland setup).
 EXTRA="$EXTRA kitty pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm"
 [[ "$BOOT" == "grub" ]] && EXTRA="$EXTRA grub efibootmgr"
+[[ "$MODE" == "dualboot" && "$BOOT" == "grub" ]] && EXTRA="$EXTRA os-prober"
 [[ "$ENC" == "yes" ]] && EXTRA="$EXTRA cryptsetup"
 if [[ "$PROFILE" == "core" ]]; then
     PKGS="$EXTRA vim zsh"
@@ -151,6 +240,8 @@ fi
 
 echo "== base configuration"
 genfstab -U "$MNT" >> "$MNT/etc/fstab"
+# Volatile /tmp as tmpfs: keeps generation snapshots free of transient files.
+printf 'tmpfs /tmp tmpfs defaults,noatime,mode=1777 0 0\n' >> "$MNT/etc/fstab"
 
 arch-chroot "$MNT" ln -sf "/usr/share/zoneinfo/$TIMEZONE" /etc/localtime
 arch-chroot "$MNT" bash -c "sed -i 's/^#$LOCALE/$LOCALE/' /etc/locale.gen && locale-gen >/dev/null"
@@ -179,7 +270,7 @@ printf '%s:%s\n' "$USER" "$PASS" | arch-chroot "$MNT" chpasswd
 arch-chroot "$MNT" sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
 echo "== provisioning (x-scripts)"
-arch-chroot "$MNT" env X_HW_AUTO=0 x setup
+arch-chroot "$MNT" env X_HW_AUTO=0 X_GEN_SKIP=1 x setup
 arch-chroot "$MNT" runuser -u "$USER" -- env X_HYPRLAND=0 X_HW_AUTO=0 /usr/bin/x setup --user
 
 # Audio stack enabled for all users (pipewire/wireplumber) + network.
@@ -204,8 +295,9 @@ if [[ "$ENC" == "yes" ]]; then
     arch-chroot "$MNT" mkinitcpio -P >/dev/null
 fi
 
-CMDROOT="root=UUID=$(blkid -s UUID -o value "$ROOT_DEV") rw"
-[[ "$ENC" == "yes" ]] && CMDROOT="cryptdevice=UUID=$LUKS_UUID:xroot root=/dev/mapper/xroot rw"
+CMDROOT="root=UUID=$(blkid -s UUID -o value "$ROOT_DEV") rw rootflags=subvol=@"
+[[ "$ENC" == "yes" ]] && CMDROOT="cryptdevice=UUID=$LUKS_UUID:xroot root=/dev/mapper/xroot rw rootflags=subvol=@"
+[[ -n "$KERNEL_PARAMS" ]] && CMDROOT="$CMDROOT $KERNEL_PARAMS"
 
 # Apply branding (os-release/GRUB hooks) BEFORE the bootloader step so a LUKS
 # cmdline written afterwards is not clobbered by x-release-apply.
@@ -215,9 +307,21 @@ fi
 
 echo "== bootloader ($BOOT)"
 if [[ "$BOOT" == "systemd-boot" ]]; then
+    # bootctl also writes the fallback \EFI\BOOT\BOOTX64.EFI; in dualboot that
+    # file may belong to Windows, so save and restore it around bootctl.
+    saved_fallback=""
+    if [[ "$MODE" == "dualboot" && -f "$MNT/boot/EFI/BOOT/BOOTX64.EFI" ]]; then
+        saved_fallback="$(mktemp)"
+        cp -a "$MNT/boot/EFI/BOOT/BOOTX64.EFI" "$saved_fallback"
+    fi
     arch-chroot "$MNT" bootctl --esp-path=/boot install >/dev/null
+    if [[ -n "$saved_fallback" ]]; then
+        cp -a "$saved_fallback" "$MNT/boot/EFI/BOOT/BOOTX64.EFI"
+        rm -f "$saved_fallback"
+        echo "   restored the pre-existing EFI/BOOT/BOOTX64.EFI (left untouched)"
+    fi
     # Ensure a removable fallback exists for firmware that only boots
-    # \EFI\BOOT\BOOTX64.EFI.
+    # \EFI\BOOT\BOOTX64.EFI (wipe mode; in dualboot the existing one wins).
     if [[ ! -f "$MNT/boot/EFI/BOOT/BOOTX64.EFI" ]]; then
         mkdir -p "$MNT/boot/EFI/BOOT"
         cp "$MNT/boot/EFI/systemd/systemd-bootx64.efi" "$MNT/boot/EFI/BOOT/BOOTX64.EFI"
@@ -235,12 +339,63 @@ initrd  /initramfs-linux.img
 options $CMDROOT
 EOF
 else
-    if [[ "$ENC" == "yes" ]]; then
-        arch-chroot "$MNT" bash -c "sed -i 's|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"$CMDROOT\"|' /etc/default/grub"
+    arch-chroot "$MNT" bash -c "sed -i 's|^GRUB_CMDLINE_LINUX=.*|GRUB_CMDLINE_LINUX=\"$CMDROOT\"|' /etc/default/grub"
+    if [[ "$MODE" == "dualboot" ]]; then
+        # Unique bootloader-id: never overwrite EFI/Microsoft/**; os-prober
+        # adds the Windows entry to the generated menu.
+        arch-chroot "$MNT" bash -c "grep -q '^GRUB_DISABLE_OS_PROBER=' /etc/default/grub && sed -i 's/^GRUB_DISABLE_OS_PROBER=.*/GRUB_DISABLE_OS_PROBER=false/' /etc/default/grub || echo 'GRUB_DISABLE_OS_PROBER=false' >> /etc/default/grub"
+        arch-chroot "$MNT" grub-install --target=x86_64-efi --efi-directory=/boot --bootloader-id=x --recheck
+    else
+        arch-chroot "$MNT" grub-install --target=x86_64-efi --efi-directory=/boot --removable --recheck
+        arch-chroot "$MNT" grub-install --target=i386-pc --boot-directory=/boot "$DISK"
     fi
-    arch-chroot "$MNT" grub-install --target=x86_64-efi --efi-directory=/boot --removable --recheck
-    arch-chroot "$MNT" grub-install --target=i386-pc --boot-directory=/boot "$DISK"
     arch-chroot "$MNT" grub-mkconfig -o /boot/grub/grub.cfg
+fi
+
+# Firmware entry: bootctl/grub-install can silently skip writing the EFI
+# variable (e.g. when running inside a chroot); make sure it exists. In
+# dualboot this matters most: the fallback may belong to Windows.
+if [[ -d /sys/firmware/efi ]] && command -v efibootmgr >/dev/null 2>&1; then
+    espnum="$(lsblk -no PARTN "$EFI" 2>/dev/null | tr -d ' ')"
+    if [[ -n "$espnum" ]]; then
+        if [[ "$BOOT" == "systemd-boot" ]]; then
+            if ! efibootmgr 2>/dev/null | grep -q 'Linux Boot Manager'; then
+                efibootmgr -c -d "$DISK" -p "$espnum" -L 'Linux Boot Manager' \
+                    -l '\EFI\systemd\systemd-bootx64.efi' >/dev/null 2>&1 || true
+            fi
+        elif [[ "$MODE" == "dualboot" ]]; then
+            if ! efibootmgr 2>/dev/null | grep -q 'X Linux'; then
+                efibootmgr -c -d "$DISK" -p "$espnum" -L 'X Linux' \
+                    -l '\EFI\x\grubx64.efi' >/dev/null 2>&1 || true
+            fi
+        fi
+    fi
+fi
+
+# Dualboot: keep the Windows Boot Manager first in the firmware order while
+# still registering the X entry (best effort; requires efibootmgr).
+if [[ "$MODE" == "dualboot" ]]; then
+    win="$(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\* Windows Boot Manager.*/\1/p' | head -1)"
+    if [[ -n "$win" ]]; then
+        order="$win"
+        for entry in $(efibootmgr 2>/dev/null | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)\*.*/\1/p'); do
+            [[ "$entry" == "$win" ]] && continue
+            order="$order,$entry"
+        done
+        efibootmgr -o "$order" >/dev/null 2>&1 || true
+    fi
+fi
+
+# First generation: snapshot of the installed system + manifest (base for
+# rollbacks and granular restores; see scripts/docs/en/generations.md).
+echo "== first generation"
+if arch-chroot "$MNT" test -x /usr/bin/x; then
+    arch-chroot "$MNT" env X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ \
+        X_GEN_SUBVOL_PREFIX=/@snapshots \
+        x gen new --reason install --label first \
+        || echo "warning: the first generation could not be created" >&2
+else
+    echo "warning: x CLI not found in the target; skipping the first generation" >&2
 fi
 
 echo

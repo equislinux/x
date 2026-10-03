@@ -102,18 +102,22 @@ are required; the remaining keys have sensible defaults when absent.
 1. **Parse and validate** the JSON (`disk`, `hostname`, `username`), require
    root and a real block device.
 2. **Partition** with GPT (`sgdisk --zap-all` first):
-   - `grub`: 1 MiB `bios_grub` partition, 512 MiB EFI partition, rest = root.
-   - `systemd-boot`: 512 MiB EFI partition, rest = root.
+   - `grub`: 1 MiB `bios_grub` partition, 1 GiB EFI partition, rest = root.
+   - `systemd-boot`: 1 GiB EFI partition, rest = root.
+   (1 GiB leaves room for several generations of boot entries.)
 3. **LUKS** (if `encryption=yes`): `cryptsetup luksFormat --type luks2` on the
    root partition (passphrase from `luks_password`, falling back to the user
    password) and open it as `/dev/mapper/xroot`.
 4. **Format and mount**: the EFI partition as FAT32 (`mkfs.vfat -F32`) mounted
-   at `/mnt/boot`, the root (or LUKS mapping) as btrfs mounted at `/mnt`.
+   at `/mnt/boot`; the root (or LUKS mapping) as btrfs with the `@`, `@home`,
+   `@snapshots` and `@xstate` subvolumes mounted at `/`, `/home`,
+   `/.snapshots` and `/var/lib/x`. `/tmp` is appended to the fstab as tmpfs.
 5. **Package set**:
    - Base set: `base base-devel linux linux-firmware sudo networkmanager
-     openssh git jq x-release kitty pipewire pipewire-pulse pipewire-alsa
-     wireplumber alsa-utils sddm`, plus `grub efibootmgr` for GRUB and
-     `cryptsetup` for LUKS.
+     openssh git jq x-release btrfs-progs kitty pipewire pipewire-pulse
+     pipewire-alsa wireplumber alsa-utils sddm`, plus `grub efibootmgr` for
+     GRUB and `cryptsetup` for LUKS. `btrfs-progs` is required by the
+     generations engine and is installed in every profile.
    - `full` profile: adds every package in the manifest pointed to by
      `X_PKGLIST` (default `/root/x-installer/packages.x86_64`).
    - `core` profile: adds only `vim zsh`.
@@ -151,14 +155,21 @@ are required; the remaining keys have sensible defaults when absent.
     overwritten.
 14. **Bootloader**:
     - `grub`: `grub-install` for `x86_64-efi` (removable) and `i386-pc`
-      (booting from the whole disk), then `grub-mkconfig`. For LUKS the
-      `GRUB_CMDLINE_LINUX` is set to
-      `cryptdevice=UUID=<luks-uuid>:xroot root=/dev/mapper/xroot rw`.
+      (booting from the whole disk), then `grub-mkconfig`.
+      `GRUB_CMDLINE_LINUX` always carries the root command line with
+      `rootflags=subvol=@` (plus `cryptdevice=UUID=<luks-uuid>:xroot
+      root=/dev/mapper/xroot` under LUKS).
     - `systemd-boot`: `bootctl --esp-path=/boot install`, a `BOOTX64.EFI`
       removable fallback if needed, and a loader entry
       `X Linux` (UEFI only) with the matching `root=` or `cryptdevice=`
       cmdline.
-15. **Cleanup**: on exit, mounts are unmounted, the LUKS mapping is closed if
+15. **First generation**: inside the chroot,
+    `X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ x gen new --reason install
+    --label first` creates `/.snapshots/0001`, the manifest under
+    `/var/lib/x/generations/0001` and the boot entries (systemd-boot
+    `loader/entries/x-gen-0001.conf`, GRUB `custom.cfg`). This is the base for
+    rollbacks and granular restores; see `generations.md`.
+16. **Cleanup**: on exit, mounts are unmounted, the LUKS mapping is closed if
     open, and the install JSON is removed.
 
 A message tells you the installation is complete; reboot and remove the
@@ -186,8 +197,13 @@ The installer supports unattended installation from the live ISO:
 The JSON for an unattended run only requires the base keys, for example:
 
 ```json
-{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no"}
+{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}
 ```
+
+`kernel_params` is optional: extra kernel command-line parameters appended to
+the installed system's cmdline (restricted to a safe character set and
+validated before partitioning). It is useful for headless validation, e.g.
+`"kernel_params":"console=ttyS0"` to keep the serial console after install.
 
 See [Testing in a VM](vm-testing.md) for an example cidata disk.
 
@@ -224,6 +240,55 @@ Notes:
   the JSON without the password and stops before the erase confirmation.
 - `X_HYPRLAND`/`X_HW_AUTO` belong to the `x-scripts` payload; the installer
   sets them when calling `x setup`.
+
+## Live medium vs installed system (credentials)
+
+The live medium is intentionally permissive so it can be used without a
+password: root autologin on tty1, empty root password and sshd with
+`PermitRootLogin yes` + password authentication. **All of that ships only in
+`airootfs`** (the live squashfs).
+
+The installer never copies those files to the target: the installed system
+takes `/etc/shadow` from the `shadow` package (root locked), creates the wheel
+user from the seed and does **not** enable sshd. Keep that rule when adding
+post-install automation: never copy `/etc` from the live into the target.
+
+## Dualboot mode
+
+`install.sh` supports two modes (`"mode"` in the JSON): `wipe` (default)
+erases the disk and builds a fresh GPT; `dualboot` installs into the
+**largest unallocated region**, preserving every existing partition and the
+Windows bootloader. The configurator asks for the mode.
+
+`dualboot` is UEFI-only in this iteration and requires a GPT disk with an
+existing EFI System Partition:
+
+| Field | Values | Meaning |
+|-------|--------|---------|
+| `mode` | `wipe` / `dualboot` | install strategy |
+| `esp` | partition (optional) | reuse this ESP instead of auto-detecting the `ef00` one |
+| `min_size` | GiB (default 20) | minimum free region accepted |
+
+What it does:
+
+1. Validates UEFI + GPT + an existing ESP; never runs `sgdisk --zap-all`.
+2. Takes the largest free block (`sgdisk -F`/`-E`), checks `min_size` and
+   creates **only** the root partition there (`sgdisk -n 0:start:end -t
+   0:8300`). Existing entries are never modified.
+3. Mounts the existing ESP at `/mnt/boot` and never formats it; btrfs +
+   `@`/`@home`/`@snapshots`/`@xstate` exactly as in wipe mode.
+4. Bootloader without touching `EFI/Microsoft/**`:
+   - systemd-boot: `bootctl install` on the shared ESP; sd-boot auto-detects
+     the Windows Boot Manager and lists it in the menu. The pre-existing
+     fallback `EFI/BOOT/BOOTX64.EFI` (possibly Windows') is saved and restored
+     around `bootctl`.
+   - GRUB: `grub-install --target=x86_64-efi --bootloader-id=x` plus
+     `os-prober` (`GRUB_DISABLE_OS_PROBER=false`) to add the Windows entry.
+5. Keeps the Windows Boot Manager first in the firmware order (best effort via
+   `efibootmgr`), and X generations never overwrite Microsoft files.
+
+Caveats: BIOS/MBR dualboot is not supported, and shrinking an existing
+partition to make room is out of scope (the free space must already exist).
 
 ## Requirements and caveats
 

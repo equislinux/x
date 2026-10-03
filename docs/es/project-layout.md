@@ -11,7 +11,6 @@ monolingües bajo `docs/`.
 ```text
 x/  (xlnux/x)
 |-- airootfs/                  # overlay del sistema de archivos raíz para el ISO/rootfs
-|-- efiboot/                   # assets de systemd-boot (loader.conf, entradas)
 |-- grub/                      # config de GRUB usada en el ISO (grub.cfg, loopback.cfg)
 |-- syslinux/                  # config y assets de Syslinux
 |-- .github/                   # workflows y scripts (sync hoja de ruta-issues)
@@ -108,7 +107,10 @@ El instalador de texto incluido en la imagen en vivo:
 |------------|-----------|
 | `grub/` | `grub.cfg`, `loopback.cfg` usados en el ISO (arranque GRUB UEFI). |
 | `syslinux/` | Configuración de Syslinux y splash para el arranque BIOS del ISO. |
-| `efiboot/` | `loader.conf` y entradas de systemd-boot usadas al arrancar el ISO bajo UEFI. |
+
+Los modos de arranque del ISO son `bios.syslinux` + `uefi.grub`
+(`profiledef.sh`): un solo gestor por firmware. La entrada `autoinstall`
+(hotkey `a`) existe en ambas rutas con `xauto=1 console=ttyS0`.
 
 El gestor de arranque instalado *en el sistema de destino* por `install.sh` es
 independiente de estos assets del ISO: GRUB (BIOS + UEFI) o systemd-boot
