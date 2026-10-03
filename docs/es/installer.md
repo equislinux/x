@@ -127,10 +127,16 @@ están.
    - Perfil `full`: añade todos los paquetes del manifiesto apuntado por
      `X_PKGLIST` (por defecto `/root/x-installer/packages.x86_64`).
    - Perfil `core`: añade solo `vim zsh`.
-6. **Esperar a la red** (comprobación de DNS contra
-   `geo.mirror.pkgbuild.com`, hasta ~120 s) y ejecutar
-   `pacstrap -K /mnt <pkgs>` desde los mirrors oficiales más el repositorio
-   `[x]`.
+6. **Preparar los keyrings** y **esperar a la red** (DNS contra
+   `geo.mirror.pkgbuild.com`, hasta ~120 s). Después `pacstrap /mnt <pkgs>`
+   desde los mirrors oficiales más el repositorio `[x]` firmado (`Required`).
+   - Live: se agrega y firma localmente `/etc/pacman.d/x-repo.pub`
+     (`pacman-key --init/--populate archlinux/--add/--lsign-key`). Lo
+     re-aplica al boot `x-keyring.service` porque `pacman-init.service`
+     recrea `/etc/pacman.d/gnupg` en tmpfs; `install.sh` lo repite de forma
+     idempotente antes de `pacstrap` (que verifica contra el keyring live).
+   - Destino: `pacman-key --gpgdir /mnt/etc/pacman.d/gnupg --init`,
+     `--populate archlinux`, agregar y firmar localmente la misma clave.
 7. **Instalar `x-scripts` offline**: el payload
    `packages/x-scripts-*.pkg.tar.zst` presente en el entorno en vivo se copia
    al destino y se instala con `pacman -U` dentro del chroot.

@@ -79,12 +79,14 @@ the `build-*.log` files.
 
   ```ini
   [x]
-  SigLevel = Optional TrustAll
+  SigLevel = Never
   Server = https://xlnux.github.io/x-repo/repo/x86_64
   ```
 
-  `SigLevel = Optional TrustAll` is a development convenience and should be
-  revisited for hardened release workflows.
+  The *build host* uses `Never` (it may not have the project key). The **live
+  ISO and the installed target** use `SigLevel = Required`: the public key
+  ships at `/etc/pacman.d/x-repo.pub` and `customize_airootfs.sh`/`install.sh`
+  import and locally sign it in the live and target keyrings.
 - The provisioning payload (`x-scripts`) is shipped **offline** inside the ISO
   at `airootfs/root/x-installer/packages/x-scripts-*.pkg.tar.zst`, so the
   installer does not need to fetch it from the network during installation.

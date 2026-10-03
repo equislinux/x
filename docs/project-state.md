@@ -55,5 +55,5 @@ According to `ROADMAP.md`, notable pending areas include:
 ## Risks and Notes
 
 - Build scripts require `sudo` and assume an Arch-like host environment with required tools installed.
-- `pacman.conf` currently uses `SigLevel = Optional TrustAll` for the custom repo, which is convenient for development but should be revisited for hardened release workflows.
+- The custom repo is signed with the project key: the live ISO and the installed target use `SigLevel = Required` with the key embedded at `/etc/pacman.d/x-repo.pub`; the build host config (`x/pacman.conf`) uses `Never` for `[x]`.
 - WSL guidance exists in multiple places; this has now been normalized into `docs/build-wsl.md` for consistency.

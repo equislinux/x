@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Trust the X repository key in the running keyring.
+# The live environment mounts a tmpfs over /etc/pacman.d/gnupg and
+# pacman-init.service recreates the keyring at boot, so the baked copy is not
+# enough: x-keyring.service runs this after pacman-init (and install.sh calls
+# the same steps before pacstrap).
+
+KEY=/etc/pacman.d/x-repo.pub
+[[ -f "$KEY" ]] || { echo "x-repo-key: $KEY is missing" >&2; exit 0; }
+
+pacman-key --add "$KEY"
+FPR="$(LC_ALL=C gpg --with-colons --show-keys "$KEY" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')"
+[[ -n "$FPR" ]] || { echo "x-repo-key: cannot resolve the key fingerprint" >&2; exit 1; }
+pacman-key --lsign-key "$FPR"

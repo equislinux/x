@@ -225,8 +225,45 @@ if [[ "$NET_OK" -ne 1 ]]; then
     exit 1
 fi
 
+# Keyrings. The published [x] database is signed, so pacman needs the project
+# key. Two targets:
+#   - live: pacman-init.service recreates /etc/pacman.d/gnupg at boot (tmpfs),
+#     and pacstrap verifies the [x] database with the live keyring -> re-add
+#     and locally sign the key here (idempotent; x-keyring.service also does
+#     it at boot).
+#   - target: prepared here so the installed system trusts [x] (Required).
+echo "== keyring (live + target)"
+# Idempotent: pacman-init.service usually did this at boot, but autoinstall can
+# race with it, so make sure the live keyring exists and has the Arch keys
+# (pacstrap verifies core/extra and [x] against the live keyring).
+pacman-key --init
+pacman-key --populate archlinux
+LIVE_KEY=/etc/pacman.d/x-repo.pub
+if [[ -f "$LIVE_KEY" ]]; then
+    pacman-key --add "$LIVE_KEY"
+    X_KEY_FPR="$(LC_ALL=C gpg --with-colons --show-keys "$LIVE_KEY" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')"
+    if [[ -n "$X_KEY_FPR" ]]; then
+        pacman-key --lsign-key "$X_KEY_FPR"
+    else
+        echo "installer: could not resolve the [x] key fingerprint" >&2
+        exit 1
+    fi
+else
+    echo "installer: $LIVE_KEY missing in the live; [x] cannot be required" >&2
+    exit 1
+fi
+
+GPGDIR="$MNT/etc/pacman.d/gnupg"
+mkdir -p "$GPGDIR"
+chmod 700 "$GPGDIR"
+pacman-key --gpgdir "$GPGDIR" --init
+pacman-key --gpgdir "$GPGDIR" --populate archlinux
+pacman-key --gpgdir "$GPGDIR" --add "$LIVE_KEY"
+pacman-key --gpgdir "$GPGDIR" --lsign-key "$X_KEY_FPR"
+install -Dm644 "$LIVE_KEY" "$MNT/etc/pacman.d/x-repo.pub"
+
 echo "== pacstrap (online; official repos + [x])"
-pacstrap -K "$MNT" $PKGS
+pacstrap "$MNT" $PKGS
 
 echo "== installing x-scripts (offline payload from the live)"
 XS_PKG="$(ls /root/x-installer/packages/x-scripts-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
@@ -259,7 +296,8 @@ if ! grep -q '^\[x\]' "$MNT/etc/pacman.conf"; then
     cat >> "$MNT/etc/pacman.conf" <<'EOF'
 
 [x]
-SigLevel = Optional TrustAll
+# Key imported and locally signed during install (/etc/pacman.d/x-repo.pub).
+SigLevel = Required
 Server = https://xlnux.github.io/x-repo/repo/x86_64
 EOF
 fi
