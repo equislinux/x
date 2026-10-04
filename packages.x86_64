@@ -147,5 +147,9 @@ ttf-opensans
 x-release
 x-dev
 
+## X tools
+xfetch-git
+xtop-git
+
 ## Installer (text)
 gum

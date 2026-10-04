@@ -114,13 +114,17 @@ are required; the remaining keys have sensible defaults when absent.
    `/.snapshots` and `/var/lib/x`. `/tmp` is appended to the fstab as tmpfs.
 5. **Package set**:
    - Base set: `base base-devel linux linux-firmware sudo networkmanager
-     openssh git jq x-release btrfs-progs kitty pipewire pipewire-pulse
-     pipewire-alsa wireplumber alsa-utils sddm`, plus `grub efibootmgr` for
-     GRUB and `cryptsetup` for LUKS. `btrfs-progs` is required by the
-     generations engine and is installed in every profile.
+     openssh git jq x-release btrfs-progs xfetch-git xtop-git kitty pipewire
+     pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm`, plus
+     `grub efibootmgr` for GRUB and `cryptsetup` for LUKS. `btrfs-progs` is
+     required by the generations engine; the X tools (`xfetch`, `xtop`) are
+     installed in every profile.
    - `full` profile: adds every package in the manifest pointed to by
      `X_PKGLIST` (default `/root/x-installer/packages.x86_64`).
    - `core` profile: adds only `vim zsh`.
+   - The `full` profile with the Hyprland desktop compiles AUR packages
+     (`quickshell-git`, `swayosd-git`, ...): give the installer **≥6 GB RAM**;
+     on low-RAM machines it limits the build jobs automatically.
 6. **Prepare the keyrings** and **wait for network** (DNS check against
    `geo.mirror.pkgbuild.com`, up to ~120 s), then `pacstrap /mnt <pkgs>` from
    the official mirrors plus the signed `[x]` repository (`Required`).
