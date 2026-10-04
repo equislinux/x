@@ -8,9 +8,14 @@ The repository is declared in `pacman.conf`:
 
 ```ini
 [x]
-SigLevel = Optional TrustAll
+# Consumer side (live ISO / installed target): import + locally sign the
+# project key shipped at /etc/pacman.d/x-repo.pub first.
+SigLevel = Required
 Server = https://xlnux.github.io/x-repo/repo/x86_64
 ```
+
+The build host (`mkarchiso -C pacman.conf`) uses `SigLevel = Never` for `[x]`
+because its keyring may not carry the project key.
 
 ## Usage in This Project
 
@@ -29,4 +34,7 @@ sudo pacman -Sy x-release
 
 ## Security Note
 
-`SigLevel = Optional TrustAll` is convenient for early-stage development and testing, but signed packages and stricter trust settings are recommended for production-grade release workflows.
+The published repository is signed with the project key. The live ISO and the
+installed target use `SigLevel = Required` and trust the key (imported and
+locally signed during build/install). The build host uses `Never` only because
+`mkarchiso` may run on a host without the project key.

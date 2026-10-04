@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# DEPRECATED: the maintained WSL path is the `xlnux/wsl` repo (importable
+# rootfs + Windows importer) with provisioning from `xlnux/wsl-scripts`.
+# This legacy builder is kept for reference only; it copies the live airootfs
+# as-is and is not exercised by the test suite.
+
 # Configuration
 PROFILE_DIR="$(pwd)"
 WORK_DIR="${PROFILE_DIR}/work-wsl"

@@ -1,0 +1,13 @@
+[Unit]
+Description=Trust the X [x] repository key in the live keyring
+After=pacman-init.service
+Requires=pacman-init.service
+ConditionPathExists=/etc/pacman.d/x-repo.pub
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/x-repo-key
+
+[Install]
+WantedBy=multi-user.target

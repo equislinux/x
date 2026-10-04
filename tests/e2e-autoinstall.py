@@ -250,12 +250,14 @@ class E2E:
             stdout=subprocess.DEVNULL,
         )
         seed_json = self.workdir / "x-install.json"
+        luks = f',"luks_password":"{self.args.password}"' if self.args.encryption == "yes" else ""
+        hypr = "yes" if self.args.hyprland else "no"
         seed_json.write_text(
             "{"
             f'"disk":"/dev/vda","hostname":"{self.args.hostname}",'
             f'"username":"{self.args.user}","password":"{self.args.password}",'
             f'"profile":"{self.args.profile}","bootloader":"{self.args.bootloader}",'
-            f'"encryption":"{self.args.encryption}","hyprland":"no",'
+            f'"encryption":"{self.args.encryption}","hyprland":"{hypr}"{luks},'
             '"kernel_params":"console=ttyS0"'
             "}\n"
         )
@@ -391,6 +393,11 @@ class E2E:
         log("phase 2/2: boot the installed disk and verify the generation")
         self.start_qemu("disk")
         assert self.console is not None and self.monitor is not None
+        if self.args.encryption == "yes":
+            # initramfs encrypt hook prompts on /dev/console (serial here).
+            self.console.expect(r"[Ee]nter passphrase", self.args.boot_timeout)
+            self.console.send(f"{self.args.password}\n")
+            log("LUKS passphrase sent")
         self.console.expect(r"login:", self.args.boot_timeout)
         self.console.send(f"{self.args.user}\n")
         self.console.expect(r"[Pp]assword[^\n]*:", 60)
@@ -459,6 +466,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     ap.add_argument("--profile", default="core", choices=("core", "full"))
     ap.add_argument("--bootloader", default="grub", choices=("grub", "systemd-boot"))
     ap.add_argument("--encryption", default="no", choices=("no", "yes"))
+    ap.add_argument(
+        "--hyprland",
+        action="store_true",
+        help="install the Hyprland/equisdots desktop (JSON hyprland=yes)",
+    )
     ap.add_argument("--hostname", default="x-vm")
     ap.add_argument("--user", default="x")
     ap.add_argument("--password", default="secret")
