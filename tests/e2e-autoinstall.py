@@ -383,11 +383,40 @@ class E2E:
         assert self.console is not None
         self.console.expect(r"autoinstall: unattended install from", 240, fails=self.FAILS)
         log("installer running (this takes a while)")
-        self.console.expect(r"installation complete", self.args.timeout, fails=self.FAILS)
-        self.console.expect(r"autoinstall: install\.sh rc=0", 120, fails=self.FAILS)
+        # The log is echoed at the end; accept either marker as completion and
+        # then require the explicit rc=0 line.
+        self.console.expect(
+            r"installation complete|autoinstall: install\.sh rc=0",
+            self.args.timeout,
+            fails=self.FAILS,
+        )
+        self.console.expect(r"autoinstall: install\.sh rc=0", 180, fails=self.FAILS)
         self.console.pump(3)
         self.stop_qemu()
         log("phase 1 OK: unattended install finished with rc=0")
+
+    def expect_ok(self, check: str, timeout: float = 90) -> None:
+        """Run a shell check as the user and assert it succeeds."""
+        assert self.console is not None
+        self.console.send(f'{{ {check}; }} && echo E2E_CHK" "_OK || echo E2E_CHK" "_FAIL\n')
+        _, seg = self.console.expect(r"E2E_CHK _(?:OK|FAIL)", timeout)
+        if "E2E_CHK _FAIL" in seg:
+            raise E2EError(f"check failed: {check}\n{seg[-800:]}")
+
+    def verify_payload(self) -> None:
+        """Assert the base tools (and the desktop payload when requested)."""
+        user = self.args.user
+        log("checking base tools (xfetch/xtop)")
+        self.expect_ok("command -v xfetch")
+        self.expect_ok("command -v xtop")
+        if self.args.profile == "full" and self.args.hyprland:
+            log("checking desktop payload (zsh + kitty shaders)")
+            self.expect_ok(f"test -f /home/{user}/.config/kitty/shaders/x-trail.pipeline")
+            self.expect_ok(f"grep -q '^custom_shaders' /home/{user}/.config/kitty/kitty.conf")
+            self.expect_ok("command -v slangc")
+            self.expect_ok(f"test -f /home/{user}/.zshrc")
+            self.expect_ok(f"grep -q 'starship init zsh' /home/{user}/.zshrc")
+            self.expect_ok("pacman -Qq noto-fonts-cjk")
 
     def phase_verify(self) -> None:
         log("phase 2/2: boot the installed disk and verify the generation")
@@ -407,6 +436,7 @@ class E2E:
         self.console.send('echo E2E_LOGIN" "_OK\n')
         self.console.expect(r"E2E_LOGIN _OK", 60)
         log("logged in on the serial console")
+        self.verify_payload()
 
         self.console.send("sudo x gen status; echo E2E_STATUS\" \"_END\n")
         if self.console.expect_opt(r"[Pp]assword[^\n]*:", 10):

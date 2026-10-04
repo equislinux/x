@@ -120,13 +120,18 @@ están.
    tmpfs.
 5. **Conjunto de paquetes**:
    - Conjunto base: `base base-devel linux linux-firmware sudo networkmanager
-     openssh git jq x-release btrfs-progs kitty pipewire pipewire-pulse
-     pipewire-alsa wireplumber alsa-utils sddm`, más `grub efibootmgr` para
+     openssh git jq x-release btrfs-progs xfetch-git xtop-git kitty pipewire
+     pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm`, más
+     `grub efibootmgr` para
      GRUB y `cryptsetup` para LUKS. `btrfs-progs` lo requiere el motor de
-     generaciones y se instala en todos los perfiles.
+     generaciones; las herramientas de X (`xfetch`, `xtop`) se instalan en
+     todos los perfiles.
    - Perfil `full`: añade todos los paquetes del manifiesto apuntado por
      `X_PKGLIST` (por defecto `/root/x-installer/packages.x86_64`).
    - Perfil `core`: añade solo `vim zsh`.
+   - El perfil `full` con el escritorio Hyprland compila paquetes de AUR
+     (`quickshell-git`, `swayosd-git`, ...): dale al instalador **≥6 GB de
+     RAM**; en máquinas con poca memoria limita los jobs de build.
 6. **Preparar los keyrings** y **esperar a la red** (DNS contra
    `geo.mirror.pkgbuild.com`, hasta ~120 s). Después `pacstrap /mnt <pkgs>`
    desde los mirrors oficiales más el repositorio `[x]` firmado (`Required`).
