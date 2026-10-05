@@ -252,12 +252,14 @@ class E2E:
         seed_json = self.workdir / "x-install.json"
         luks = f',"luks_password":"{self.args.password}"' if self.args.encryption == "yes" else ""
         hypr = "yes" if self.args.hyprland else "no"
+        agents = "yes" if self.args.agents else "no"
         seed_json.write_text(
             "{"
             f'"disk":"/dev/vda","hostname":"{self.args.hostname}",'
             f'"username":"{self.args.user}","password":"{self.args.password}",'
             f'"profile":"{self.args.profile}","bootloader":"{self.args.bootloader}",'
-            f'"encryption":"{self.args.encryption}","hyprland":"{hypr}"{luks},'
+            f'"encryption":"{self.args.encryption}","hyprland":"{hypr}",'
+            f'"agents":"{agents}"{luks},'
             '"kernel_params":"console=ttyS0"'
             "}\n"
         )
@@ -500,6 +502,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--hyprland",
         action="store_true",
         help="install the Hyprland/equisdots desktop (JSON hyprland=yes)",
+    )
+    ap.add_argument(
+        "--agents",
+        action="store_true",
+        help="install opencode-bin + the Xscriptor AI bundle (JSON agents=yes)",
     )
     ap.add_argument("--hostname", default="x-vm")
     ap.add_argument("--user", default="x")
