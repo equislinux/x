@@ -64,10 +64,9 @@
 <ul>
   <li><code>airootfs/</code>: Root filesystem overlay (system config, branding, installer automation).</li>
   <li><code>profiledef.sh</code>: ArchISO profile metadata, boot modes, and file permissions.</li>
-  <li><code>packages.x86_64</code>: Package manifest for ISO/rootfs builds.</li>
+  <li><code>packages.x86_64</code>: Package manifest for ISO builds.</li>
   <li><code>pacman.conf</code>: Package manager configuration, including the <code>[x]</code> repository.</li>
   <li><code>xbuild.sh</code>: ISO build script.</li>
-  <li><code>xbuildwsl.sh</code> / <code>xbuildwslc.sh</code>: WSL tarball build scripts.</li>
   <li><code>ROADMAP.md</code>: Project roadmap used as issue-sync source.</li>
 </ul>
 
@@ -86,9 +85,7 @@
 
 <h3 align="center"> Build for WSL </h3>
 
-<pre><code>sudo ./xbuildwsl.sh</code></pre>
-
-<p>Output: <code>./out-wsl/x-YYYY.MM.DD.tar.gz</code> (or <code>.tar.zst</code> when using <code>xbuildwslc.sh</code>).</p>
+<p>The WSL rootfs is built in <a href="https://github.com/xlnux/wsl">xlnux/wsl</a> (rootfs builder + Windows importer) with provisioning in <a href="https://github.com/xlnux/wsl-scripts">xlnux/wsl-scripts</a>. Published rootfs release: <code>v0.1.0</code>. See <a href="./docs/build-wsl.md">Build WSL Guide</a>.</p>
 
 <hr />
 
@@ -111,7 +108,6 @@
   <li><a href="./docs/build-wsl.md">Build WSL Guide</a></li>
   <li><a href="./docs/x-repository.md">X Repository Guide</a></li>
   <li><a href="./docs/installation.md">Installation Guide</a></li>
-  <li><a href="./WSL_GUIDE.md">Legacy WSL Guide</a></li>
   <li><a href="./ROADMAP.md">Roadmap</a></li>
   <li><a href="./CODE_OF_CONDUCT.md">Code of Conduct</a></li>
   <li><a href="./CONTRIBUTING.md">Contributions</a></li>

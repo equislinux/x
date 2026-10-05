@@ -28,7 +28,7 @@
 
 <ul>
   <li><b>airootfs/</b>: Root filesystem overlay where branding, hooks, and system configurations reside.</li>
-  <li><b>Build Scripts (xbuild.sh / xbuildwsl.sh)</b>: Tools for ISO and WSL image generation.</li>
+  <li><b>Build Script (xbuild.sh)</b>: Tool for ISO image generation.</li>
   <li><b>pacman.conf & packages.x86_64</b>: Core configuration for repository management and package lists.</li>
 </ul>
 
