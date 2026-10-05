@@ -424,6 +424,12 @@ class E2E:
             self.expect_ok(f"test -f /home/{user}/.zshrc")
             self.expect_ok(f"grep -q 'starship init zsh' /home/{user}/.zshrc")
             self.expect_ok("pacman -Qq noto-fonts-cjk")
+        if self.args.agents:
+            log("checking agent payload (opencode + Xscriptor bundle)")
+            self.expect_ok("command -v opencode")
+            self.expect_ok(f"test -d /home/{user}/.config/opencode/agents")
+            self.expect_ok(f"test -d /home/{user}/.config/opencode/skills")
+            self.expect_ok(f"test -d /home/{user}/.local/state/x/agents")
 
     def phase_verify(self) -> None:
         log("phase 2/2: boot the installed disk and verify the generation")
