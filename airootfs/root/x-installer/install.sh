@@ -30,6 +30,7 @@ BOOT="$(jget bootloader)";            BOOT="${BOOT:-grub}"
 ENC="$(jget encryption)";             ENC="${ENC:-no}"
 LUKS_PASS="$(jget luks_password)"
 HYPR="$(jget hyprland)";              HYPR="${HYPR:-no}"
+AGENTS="$(jget agents)";              AGENTS="${AGENTS:-no}"
 MODE="$(jget mode)";                  MODE="${MODE:-wipe}"
 ESP_OVERRIDE="$(jget esp)"
 MIN_SIZE="$(jget min_size)";          MIN_SIZE="${MIN_SIZE:-20}"
@@ -58,7 +59,7 @@ if [[ "$DRY" == "1" ]]; then
     echo "  language:  $LANG_CODE ($LOCALE)  keyboard: $KEYMAP  timezone: $TIMEZONE"
     echo "  profile:   $PROFILE"
     echo "  bootloader:$BOOT"
-    echo "  encryption:$ENC   hyprland:$HYPR"
+    echo "  encryption:$ENC   hyprland:$HYPR   agents:$AGENTS"
     echo "  extra kernel params: ${KERNEL_PARAMS:-none}"
     exit 0
 fi
@@ -325,6 +326,16 @@ EOF
     echo "hyprland setup exited with $?"
     set -e
     rm -f "$MNT/etc/sudoers.d/x-hypr-install"
+fi
+
+if [[ "$AGENTS" == "yes" ]]; then
+    echo "== installing the Xscriptor AI agents/skills bundle (as user)"
+    set +e
+    arch-chroot "$MNT" runuser -u "$USER" -- env \
+        HOME="/home/$USER" XDG_CONFIG_HOME="/home/$USER/.config" \
+        /usr/bin/x agent install --bundle x
+    echo "agent setup exited with $?"
+    set -e
 fi
 
 if [[ "$ENC" == "yes" ]]; then
