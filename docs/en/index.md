@@ -72,15 +72,14 @@ Related documentation in this repository:
 - **Offline provisioning payload.** The `x-scripts` package and the Hyprland
   config snapshot ship inside the ISO, so provisioning does not depend on
   downloading them during install.
-- **WSL support.** `xbuildwsl.sh` / `xbuildwslc.sh` produce rootfs tarballs.
+- **WSL support.** The rootfs is built in the dedicated `xlnux/wsl` repository
+  (release `v0.1.0`) and provisioned with `xlnux/wsl-scripts`.
 
 ## Development model
 
-- `main` is the branch described by this documentation.
-- The reboot initiative is developed on the `x/reboot` branch of each repo
-  (`origin/x/reboot`).
-- Older remote branches (`checkpoint/calamares-installer-v1`, `dev`) are
-  historical and do not reflect the current installer.
+- Development happens on `main` with short-lived PR branches.
+- Older branches (`checkpoint/calamares-installer-v1`, `x/reboot`, `dev`) are
+  historical and do not reflect the current code.
 
 ## Scope
 
