@@ -76,16 +76,14 @@ Documentación relacionada en este repositorio:
 - **Payload de aprovisionamiento offline.** El paquete `x-scripts` y la
   instantánea de la configuración de Hyprland viajan dentro del ISO, de modo
   que el aprovisionamiento no depende de descargarlos durante la instalación.
-- **Soporte WSL.** `xbuildwsl.sh` / `xbuildwslc.sh` producen tarballs de
-  rootfs.
+- **Soporte WSL.** El rootfs se construye en el repositorio dedicado
+  `xlnux/wsl` (release `v0.1.0`) y se aprovisiona con `xlnux/wsl-scripts`.
 
 ## Modelo de desarrollo
 
-- `main` es la rama que describe esta documentación.
-- La iniciativa *reboot* se desarrolla en la rama `x/reboot` de cada repo
-  (`origin/x/reboot`).
-- Las ramas remotas antiguas (`checkpoint/calamares-installer-v1`, `dev`) son
-  históricas y no reflejan el instalador actual.
+- El desarrollo ocurre en `main` con ramas cortas por PR.
+- Las ramas antiguas (`checkpoint/calamares-installer-v1`, `x/reboot`, `dev`)
+  son históricas y no reflejan el código actual.
 
 ## Alcance
 

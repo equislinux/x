@@ -31,6 +31,6 @@ if [[ "$ISO_COUNT" -gt 0 ]]; then
   find ./out -maxdepth 2 -type f -name '*.iso' -printf ' - %p (%k KB)\n'
 else
   echo "No ISO found in ./out. Check the log: $LOG"
-  echo "Common causes: not enough disk space, an error in profiledef.sh, or an exit 1 in airootfs/root/customize_airootfs.sh."
+  echo "Common causes: not enough disk space, an error in profiledef.sh, or a failing live helper or pacman hook."
   exit 2
 fi

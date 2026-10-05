@@ -2,8 +2,9 @@
 
 > Otros idiomas: [English](../en/building.md)
 
-Esta guía explica cómo construir el ISO en vivo de X desde este repositorio con
-`xbuild.sh` y resume los scripts separados de construcción de rootfs para WSL.
+Esta guía explica cómo construir el ISO en vivo de X desde este repositorio
+con `xbuild.sh`. El rootfs de WSL se construye desde el repositorio dedicado
+`xlnux/wsl`.
 
 ## Prerrequisitos
 
@@ -88,9 +89,10 @@ Tanto `work/` como `out/` se recrean en cada construcción y están en
 
   El *host de build* usa `Never` (puede no tener la clave del proyecto). El
   **ISO live y el destino instalado** usan `SigLevel = Required`: la clave
-  pública viaja en `/etc/pacman.d/x-repo.pub` y
-  `customize_airootfs.sh`/`install.sh` la importan y firman localmente en el
-  keyring live y en el del destino.
+  pública viaja en `/etc/pacman.d/x-repo.pub`; en el entorno en vivo
+  `pacman-init.service` recrea el keyring en tmpfs y `x-keyring.service`
+  importa y firma localmente la clave del proyecto, mientras que `install.sh`
+  prepara el keyring del destino de la misma forma.
 - El *payload* de aprovisionamiento (`x-scripts`) se incluye **offline**
   dentro del ISO en `airootfs/root/x-installer/packages/x-scripts-*.pkg.tar.zst`,
   de modo que el instalador no necesita descargarlo de la red durante la
@@ -102,33 +104,20 @@ Tanto `work/` como `out/` se recrean en cada construcción y están en
   (`build-*.log`).
 - Causas de fallo habituales:
   - espacio en disco insuficiente;
-  - errores en la lógica de personalización del perfil;
+  - errores en un helper en vivo o en un hook de pacman;
   - configuración de perfil inválida en `profiledef.sh`;
   - montajes obsoletos bajo `work/x86_64/airootfs` (el script intenta
     limpiarlos; si hace falta, desmonta con
     `sudo umount -R work/x86_64/airootfs`).
 
-## Construcciones WSL (scripts separados)
+## Construcciones WSL (repositorios dedicados)
 
-Los tarballs de sistema de archivos raíz para WSL se construyen con sus
-propios scripts, no con `xbuild.sh`:
+WSL no se construye desde este repositorio. El flujo canónico vive en:
 
-| Script | Salida |
-|--------|--------|
-| `sudo ./xbuildwsl.sh` | `out-wsl/x-YYYY.MM.DD.tar.gz` (gzip) |
-| `sudo ./xbuildwslc.sh` | `out-wsl/x-YYYY.MM.DD.tar.zst` (zstd; requiere `zstd`) |
+| Repositorio | Rol |
+|-------------|-----|
+| `xlnux/wsl` | `build-rootfs.sh` produce un tarball de rootfs importable (`.tar.gz` + `.sha256`); `install.ps1` lo importa en Windows. Release publicada: `v0.1.0`. |
+| `xlnux/wsl-scripts` | Aprovisionamiento en dos etapas dentro de la distro (`stage-root.sh` / `stage-user.sh`). |
 
-Ambos scripts arrancan un rootfs bajo `work-wsl/rootfs` con `pacstrap`,
-copian el overlay de `airootfs`, aplican los permisos declarados en
-`profiledef.sh`, ejecutan el paso de personalización en `arch-chroot`, limpian
-la caché de pacman y crean el tarball. Requieren un entorno tipo Arch con
-`pacstrap`/`arch-chroot` y `sudo`.
-
-Notas:
-
-- WSL no puede importar archivos `.tar.zst` directamente; descomprime primero
-  (`zstd -d`) para obtener un `.tar` y ejecuta después `wsl --import`.
-- `xbuildwslc.sh` excluye los scripts auxiliares solo-en-vivo
-  (`.automated_script.sh`, `x-postinstall.sh`) del archivo.
-- Consulta `docs/build-wsl.md` para el flujo WSL canónico y `WSL_GUIDE.md`
-  para un recorrido más largo y antiguo.
+Consulta `docs/build-wsl.md` para el resumen; los dos repositorios de arriba
+son la fuente de verdad.

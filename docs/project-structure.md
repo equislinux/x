@@ -14,8 +14,6 @@ x/
 ├── pacman.conf                # pacman configuration (includes [x] repo)
 ├── packages.x86_64            # Package manifest for builds
 ├── xbuild.sh                  # ISO build script
-├── xbuildwsl.sh               # WSL rootfs build script (gzip output)
-├── xbuildwslc.sh              # WSL rootfs build script (zstd output)
 ├── ROADMAP.md                 # Project roadmap
 └── README.md                  # Main project entrypoint
 ```
@@ -33,10 +31,9 @@ x/
 
 - `profiledef.sh`: defines ISO metadata, boot modes, image behavior, and selected file permissions.
 - `packages.x86_64`: package list used by build scripts.
-- `pacman.conf`: repository configuration used by both ISO and WSL build flows.
+- `pacman.conf`: repository configuration used by the ISO build flow.
 
 ## Build Outputs
 
-- ISO flow (`xbuild.sh`) writes artifacts to `out/`.
-- WSL flow (`xbuildwsl.sh` and `xbuildwslc.sh`) writes artifacts to `out-wsl/`.
-- Temporary build work directories are `work/` and `work-wsl/`.
+- ISO flow (`xbuild.sh`) writes artifacts to `out/`; temporary work lives under `work/`.
+- WSL rootfs builds live in the dedicated `xlnux/wsl` repository.

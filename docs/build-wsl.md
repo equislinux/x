@@ -1,60 +1,43 @@
 # Build WSL Guide
 
-This guide explains how to produce and import an X Linux root filesystem for Windows Subsystem for Linux (WSL).
+X for WSL is built and provisioned from dedicated repositories; this
+repository (`xlnux/x`) only ships the ISO profile and the installer.
 
-## Build Scripts
+| Repository | Role |
+|------------|------|
+| [`xlnux/wsl`](https://github.com/xlnux/wsl) | `build-rootfs.sh` builds an importable rootfs tarball (`.tar.gz` + `.sha256`) and `install.ps1` imports it on Windows. Published release: `v0.1.0`. |
+| [`xlnux/wsl-scripts`](https://github.com/xlnux/wsl-scripts) | Two-stage in-distro provisioning (`stage-root.sh` / `stage-user.sh`): locale, keymap, timezone, user, shell, sudo and rc files. |
 
-Two scripts are available:
+## Build
 
-- `xbuildwsl.sh`: outputs a `tar.gz` archive.
-- `xbuildwslc.sh`: outputs a `tar.zst` archive with stronger compression.
-
-Both scripts:
-
-- build a root filesystem in `work-wsl/rootfs`;
-- install packages from `packages.x86_64`;
-- copy `airootfs` content;
-- apply permissions from `profiledef.sh`;
-- run customization steps in `arch-chroot`;
-- produce artifacts in `out-wsl/`.
-
-## Prerequisites
-
-- Linux environment with Arch tooling (`pacstrap`, `arch-chroot`, `pacman`).
-- `sudo` access.
-- For `xbuildwslc.sh`: `zstd` installed.
-
-## Build Commands
-
-Run from repository root:
+On an Arch-like host:
 
 ```bash
-sudo ./xbuildwsl.sh
+git clone https://github.com/xlnux/wsl
+cd wsl && sudo ./build-rootfs.sh
 ```
 
-or:
+The artifact lands in `out/` (`x-wsl-rootfs.tar.gz` plus its `.sha256`). The
+rootfs intentionally ships no kernel, firmware or NetworkManager: WSL provides
+the kernel and networking.
 
-```bash
-sudo ./xbuildwslc.sh
-```
+## Import
 
-## Output
-
-- Gzip flow: `out-wsl/x-YYYY.MM.DD.tar.gz`
-- Zstandard flow: `out-wsl/x-YYYY.MM.DD.tar.zst`
-
-## Import into WSL
-
-In PowerShell:
+On Windows (WSL Store >= 0.67.6, Windows 11 / Server 2022+):
 
 ```powershell
-wsl --import x C:\WSL\x C:\path\to\x-YYYY.MM.DD.tar
+wsl --import x C:\WSL\x .\x-wsl-rootfs.tar.gz --version 2
 ```
 
-If you built `.tar.zst`, decompress it first (for example with `zstd -d`) to get a `.tar` file.
+Tar streams (optionally compressed) import directly; do not unpack first.
 
-## Post-Import Notes
+## First boot
 
-- First boot usually starts as `root`.
-- Create a regular user and configure `/etc/wsl.conf` if you want automatic login as that user.
-- Use `wsl --shutdown` from PowerShell after user/default configuration changes.
+```bash
+# root stage: tools, locale, keymap, timezone, user, sudo
+./install.sh
+# then terminate and re-enter as the created user for the user stage
+```
+
+See `xlnux/wsl` and `xlnux/wsl-scripts` for the authoritative flow and
+options.

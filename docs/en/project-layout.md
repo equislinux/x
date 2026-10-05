@@ -20,11 +20,8 @@ x/  (xlnux/x)
 |-- bootstrap_packages.x86_64  # minimal bootstrap set for archiso
 |-- xbuild.sh                  # ISO build script (recommended)
 |-- x.sh                       # minimal one-liner mkarchiso build
-|-- xbuildwsl.sh               # WSL rootfs build (gzip tarball)
-|-- xbuildwslc.sh              # WSL rootfs build (zstd tarball)
 |-- ROADMAP.md                 # project roadmap
 |-- README.md                  # repository entry point
-|-- WSL_GUIDE.md               # legacy WSL walkthrough
 |-- CODE_OF_CONDUCT.md         # community guidelines
 |-- CONTRIBUTING.md            # contribution guide
 |-- LICENSE                    # GPL-3.0
@@ -66,7 +63,7 @@ parts:
 | `airootfs/etc/systemd/system/etc-pacman.d-gnupg.mount` | archiso keyring handling. |
 | `airootfs/root/.automated_script.sh` | Official archiso `script=` automation runner. |
 | `airootfs/root/.zlogin` | zsh login hook that starts the installer on TTY1. |
-| `airootfs/root/customize_airootfs.sh` | Customization run inside the chroot during the build. |
+| `airootfs/etc/systemd/system/multi-user.target.wants/` | Committed enablement symlinks for live services (`x-autoinstall`, `x-keyring`, NetworkManager, ...). |
 | `airootfs/root/x-installer/` | The text installer (see [Text installer](installer.md)). |
 | `airootfs/root/x-postinstall.sh` | Legacy first-boot branding script; not invoked by the current installer (provisioning goes through the `x-scripts` payload). |
 | `airootfs/usr/local/bin/` | Live helpers: `choose-mirror`, `livecd-sound`, `Installation_guide`, `xinstall`. |
@@ -94,10 +91,9 @@ The text installer shipped in the live image:
   X packages `x-release` and `x-dev` from the `[x]` repository.
 - `bootstrap_packages.x86_64`: minimal package set used by archiso for the
   bootstrap root.
-- `pacman.conf`: repository configuration used by ISO and WSL build flows;
-  adds the `[x]` repository.
+- `pacman.conf`: repository configuration used by the ISO build flow; adds
+  the `[x]` repository.
 - `xbuild.sh` / `x.sh`: ISO build entry points.
-- `xbuildwsl.sh` / `xbuildwslc.sh`: WSL rootfs tarball entry points.
 
 ## Bootloader assets
 
@@ -123,6 +119,5 @@ bilingual documentation set lives under `docs/en/` and `docs/es/`.
 ## Build outputs
 
 - ISO flow (`xbuild.sh`): `out/` artifacts; temporary work under `work/`.
-- WSL flow (`xbuildwsl*.sh`): `out-wsl/` artifacts; rootfs under
-  `work-wsl/rootfs`.
+- WSL rootfs builds live in the dedicated `xlnux/wsl` repository.
 - All build outputs and `build-*.log` files are gitignored.

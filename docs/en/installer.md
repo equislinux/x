@@ -72,6 +72,7 @@ to plain text prompts otherwise (`ui.sh`).
 | Root encryption (LUKS) | yes/no | `encryption` (`yes`/`no`) |
 | LUKS passphrase | reuse user password or dedicated | `luks_password` |
 | Install Hyprland setup | yes/no (requires network) | `hyprland` (`yes`/`no`) |
+| Install Xscriptor AI agents | yes/no (requires network) | `agents` (`yes`/`no`) |
 
 Language-to-locale mapping used by the configurator:
 
@@ -90,7 +91,7 @@ Before writing the config, the configurator asks for final confirmation that
 everything on the selected disk will be erased. The resulting JSON looks like:
 
 ```json
-{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","encryption":"no","luks_password":"","hyprland":"no"}
+{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","encryption":"no","luks_password":"","hyprland":"no","agents":"no"}
 ```
 
 The JSON is written to the path in `X_CONFIG_OUT` (default
@@ -151,6 +152,10 @@ are required; the remaining keys have sensible defaults when absent.
     - PipeWire/Pulse/WirePlumber are enabled for all users; the Hyprland setup
       is **deferred** to a later step/point (not run here when
       `hyprland=no`).
+    - optional AI agents (`agents=yes`): `opencode-bin` is installed from
+      `[x]`, then `x agent install --bundle x` runs as the target user with
+      `HOME=/home/<user>` (Xscriptor bundle: agents, skills and commands for
+      OpenCode).
 11. **Hyprland setup** (only if `hyprland=yes`): a temporary passwordless-sudo
     drop-in is created, and
     `/usr/share/x/tools/hyprland-install.sh` runs as the target user. The drop-in

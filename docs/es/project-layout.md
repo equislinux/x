@@ -20,11 +20,8 @@ x/  (xlnux/x)
 |-- bootstrap_packages.x86_64  # conjunto de arranque mínimo para archiso
 |-- xbuild.sh                  # script de build del ISO (recomendado)
 |-- x.sh                       # build mkarchiso minimalista en una línea
-|-- xbuildwsl.sh               # build de rootfs WSL (tarball gzip)
-|-- xbuildwslc.sh              # build de rootfs WSL (tarball zstd)
 |-- ROADMAP.md                 # hoja de ruta del proyecto
 |-- README.md                  # punto de entrada del repositorio
-|-- WSL_GUIDE.md               # recorrido WSL antiguo
 |-- CODE_OF_CONDUCT.md         # normas de la comunidad
 |-- CONTRIBUTING.md            # guía de contribución
 |-- LICENSE                    # GPL-3.0
@@ -66,7 +63,7 @@ partes más relevantes:
 | `airootfs/etc/systemd/system/etc-pacman.d-gnupg.mount` | Gestión del keyring de archiso. |
 | `airootfs/root/.automated_script.sh` | Ejecutor de la automatización oficial `script=` de archiso. |
 | `airootfs/root/.zlogin` | Hook de login de zsh que inicia el instalador en TTY1. |
-| `airootfs/root/customize_airootfs.sh` | Personalización ejecutada dentro del chroot durante la build. |
+| `airootfs/etc/systemd/system/multi-user.target.wants/` | Symlinks de habilitación versionados para servicios en vivo (`x-autoinstall`, `x-keyring`, NetworkManager, ...). |
 | `airootfs/root/x-installer/` | El instalador de texto (consulta [Instalador de texto](installer.md)). |
 | `airootfs/root/x-postinstall.sh` | Script de branding de primer arranque antiguo; el instalador actual no lo invoca (el aprovisionamiento va por el payload `x-scripts`). |
 | `airootfs/usr/local/bin/` | Utilidades en vivo: `choose-mirror`, `livecd-sound`, `Installation_guide`, `xinstall`. |
@@ -95,11 +92,9 @@ El instalador de texto incluido en la imagen en vivo:
   paquetes de X `x-release` y `x-dev` del repositorio `[x]`.
 - `bootstrap_packages.x86_64`: conjunto mínimo de paquetes que archiso usa
   para el root de arranque.
-- `pacman.conf`: configuración de repositorios usada por los flujos de build
-  del ISO y WSL; añade el repositorio `[x]`.
+- `pacman.conf`: configuración de repositorios usada por el flujo de build del
+  ISO; añade el repositorio `[x]`.
 - `xbuild.sh` / `x.sh`: puntos de entrada del build del ISO.
-- `xbuildwsl.sh` / `xbuildwslc.sh`: puntos de entrada del tarball de rootfs
-  WSL.
 
 ## Assets de los gestores de arranque
 
@@ -126,7 +121,6 @@ documentación estructurada y bilingüe vive en `docs/en/` y `docs/es/`.
 ## Salidas de build
 
 - Flujo ISO (`xbuild.sh`): artefactos en `out/`; trabajo temporal en `work/`.
-- Flujo WSL (`xbuildwsl*.sh`): artefactos en `out-wsl/`; rootfs en
-  `work-wsl/rootfs`.
+- El rootfs de WSL se construye en el repositorio dedicado `xlnux/wsl`.
 - Todas las salidas de build y los archivos `build-*.log` están en
   `.gitignore`.

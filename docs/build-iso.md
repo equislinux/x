@@ -42,5 +42,5 @@ Run from the repository root:
 - If no ISO is generated, check the build log first.
 - Common failure causes:
   - insufficient disk space;
-  - script errors in profile customization logic;
+  - errors in a live helper or pacman hook;
   - invalid profile configuration.
