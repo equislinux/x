@@ -152,8 +152,8 @@ are required; the remaining keys have sensible defaults when absent.
     - PipeWire/Pulse/WirePlumber are enabled for all users; the Hyprland setup
       is **deferred** to a later step/point (not run here when
       `hyprland=no`).
-    - optional AI agents (`agents=yes`): after provisioning,
-      `x agent install --bundle x` runs as the target user with
+    - optional AI agents (`agents=yes`): `opencode-bin` is installed from
+      `[x]`, then `x agent install --bundle x` runs as the target user with
       `HOME=/home/<user>` (Xscriptor bundle: agents, skills and commands for
       OpenCode).
 11. **Hyprland setup** (only if `hyprland=yes`): a temporary passwordless-sudo

@@ -159,10 +159,10 @@ están.
     - PipeWire/Pulse/WirePlumber se habilitan para todos los usuarios; el
       setup de Hyprland queda **diferido** a un paso/punto posterior (no se
       ejecuta aquí cuando `hyprland=no`).
-    - agentes de IA opcionales (`agents=yes`): tras el aprovisionamiento,
-      `x agent install --bundle x` corre como el usuario destino con
-      `HOME=/home/<user>` (bundle de Xscriptor: agentes, skills y comandos
-      para OpenCode).
+    - agentes de IA opcionales (`agents=yes`): se instala `opencode-bin` desde
+      `[x]` y después `x agent install --bundle x` corre como el usuario
+      destino con `HOME=/home/<user>` (bundle de Xscriptor: agentes, skills y
+      comandos para OpenCode).
 11. **Setup de Hyprland** (solo si `hyprland=yes`): se crea un drop-in
     temporal de sudo sin password y se ejecuta
     `/usr/share/x/tools/hyprland-install.sh` como el usuario destino. El

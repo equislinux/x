@@ -329,6 +329,9 @@ EOF
 fi
 
 if [[ "$AGENTS" == "yes" ]]; then
+    echo "== installing the opencode CLI (opencode-bin from [x])"
+    arch-chroot "$MNT" pacman -S --needed --noconfirm opencode-bin >/dev/null 2>&1 \
+        || echo "warning: opencode-bin not installed (is it published in [x]?)"
     echo "== installing the Xscriptor AI agents/skills bundle (as user)"
     set +e
     arch-chroot "$MNT" runuser -u "$USER" -- env \
