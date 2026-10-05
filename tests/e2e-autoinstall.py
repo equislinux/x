@@ -395,6 +395,11 @@ class E2E:
         self.console.expect(r"autoinstall: install\.sh rc=0", 180, fails=self.FAILS)
         self.console.pump(3)
         self.stop_qemu()
+        # Keep the live-phase serial: phase 2 reuses serial.log.
+        try:
+            shutil.copy(self.workdir / "serial.log", self.workdir / "serial-phase1.log")
+        except OSError:
+            pass
         log("phase 1 OK: unattended install finished with rc=0")
 
     def expect_ok(self, check: str, timeout: float = 90) -> None:
