@@ -299,7 +299,7 @@ if ! grep -q '^\[x\]' "$MNT/etc/pacman.conf"; then
 [x]
 # Key imported and locally signed during install (/etc/pacman.d/x-repo.pub).
 SigLevel = Required
-Server = https://xlnux.github.io/x-repo/repo/x86_64
+Server = https://equislinux.github.io/x-repo/repo/x86_64
 EOF
 fi
 

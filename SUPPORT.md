@@ -17,7 +17,7 @@
 
 <h2 align="center" id="get-help"> Get Help </h2>
 <ul>
-  <li><b>Open an issue:</b> <a href="https://github.com/xlnux/x/issues">github.com/xlnux/x/issues</a></li>
+  <li><b>Open an issue:</b> <a href="https://github.com/equislinux/x/issues">github.com/equislinux/x/issues</a></li>
   <li><b>Security reports:</b> <a href="mailto:x@xscriptor.com">x@xscriptor.com</a> (private disclosure only)</li>
 </ul>
 

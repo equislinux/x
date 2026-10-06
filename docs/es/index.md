@@ -2,7 +2,7 @@
 
 > Otros idiomas: [English](../en/index.md)
 
-Este es el índice de documentación del repositorio `x` (`xlnux/x`), el hogar
+Este es el índice de documentación del repositorio `x` (`equislinux/x`), el hogar
 de la distribución **X** (antes conocida como *X Linux* / `x-linux`). X es un
 *spin* personalizado de Arch Linux centrado en la simplicidad, el *branding*
 limpio y las construcciones reproducibles. Incluye su propio repositorio de
@@ -41,17 +41,17 @@ ruta y `docs/project-state.md` para una instantánea del estado.
 
 ## Cómo se mapea este repositorio en la organización
 
-El *workspace* agrupa cada repositorio de xlnux bajo `x-lnux/`. Los nombres de
+El *workspace* agrupa cada repositorio de equislinux bajo `x-lnux/`. Los nombres de
 los repos se renombraron en su momento, por lo que las referencias antiguas a
 `x-linux` (la distro) o a un repo `x` de scripts deben leerse con este mapeo:
 
 | Repositorio | Rol |
 |-------------|-----|
-| `xlnux/x` | **La distro (este repo).** Perfil archiso, ISO en vivo, instalador de texto, construcción de rootfs para WSL. |
-| `xlnux/scripts` | *Payload* de aprovisionamiento y la CLI `x` (`x setup`, `x theme`, ...). Se empaqueta como `x-scripts` y lo instala el instalador de texto. |
-| `xlnux/x-repo` | Repositorio binario de paquetes de X (alojado en GitHub Pages, `[x]` en `pacman.conf`) y el portal de paquetes. |
-| `xlnux/xpm` | Gestor de paquetes de X (Rust). |
-| `xlnux/xpkg` | Herramienta de empaquetado de X para desarrolladores (Rust). |
+| `equislinux/x` | **La distro (este repo).** Perfil archiso, ISO en vivo, instalador de texto, construcción de rootfs para WSL. |
+| `equislinux/scripts` | *Payload* de aprovisionamiento y la CLI `x` (`x setup`, `x theme`, ...). Se empaqueta como `x-scripts` y lo instala el instalador de texto. |
+| `equislinux/x-repo` | Repositorio binario de paquetes de X (alojado en GitHub Pages, `[x]` en `pacman.conf`) y el portal de paquetes. |
+| `equislinux/xpm` | Gestor de paquetes de X (Rust). |
+| `equislinux/xpkg` | Herramienta de empaquetado de X para desarrolladores (Rust). |
 | `equisdots/*` | Org dueña del stack de escritorio (config Lua de Hyprland, shell Quickshell, paletas, motores, login SDDM) consumido de solo lectura por la herramienta de instalación de Hyprland en `scripts`; su instalador oficial es `equisdots/dots`. |
 
 Documentación relacionada en este repositorio:
@@ -77,7 +77,7 @@ Documentación relacionada en este repositorio:
   instantánea de la configuración de Hyprland viajan dentro del ISO, de modo
   que el aprovisionamiento no depende de descargarlos durante la instalación.
 - **Soporte WSL.** El rootfs se construye en el repositorio dedicado
-  `xlnux/wsl` (release `v0.1.0`) y se aprovisiona con `xlnux/wsl-scripts`.
+  `equislinux/wsl` (release `v0.1.0`) y se aprovisiona con `equislinux/wsl-scripts`.
 
 ## Modelo de desarrollo
 
@@ -87,7 +87,7 @@ Documentación relacionada en este repositorio:
 
 ## Alcance
 
-Todo lo que hay en este repositorio forma parte de la organización xlnux.
+Todo lo que hay en este repositorio forma parte de la organización equislinux.
 Aquí solo viven las referencias relacionadas con construir, instalar y
 aprovisionar X; la lógica de configuración del usuario vive en el *payload*
 `x-scripts`.

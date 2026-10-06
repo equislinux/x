@@ -9,7 +9,7 @@ monolingües bajo `docs/`.
 ## Estructura de nivel superior
 
 ```text
-x/  (xlnux/x)
+x/  (equislinux/x)
 |-- airootfs/                  # overlay del sistema de archivos raíz para el ISO/rootfs
 |-- grub/                      # config de GRUB usada en el ISO (grub.cfg, loopback.cfg)
 |-- syslinux/                  # config y assets de Syslinux
@@ -121,6 +121,6 @@ documentación estructurada y bilingüe vive en `docs/en/` y `docs/es/`.
 ## Salidas de build
 
 - Flujo ISO (`xbuild.sh`): artefactos en `out/`; trabajo temporal en `work/`.
-- El rootfs de WSL se construye en el repositorio dedicado `xlnux/wsl`.
+- El rootfs de WSL se construye en el repositorio dedicado `equislinux/wsl`.
 - Todas las salidas de build y los archivos `build-*.log` están en
   `.gitignore`.

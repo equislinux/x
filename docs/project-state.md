@@ -35,7 +35,7 @@ This document summarizes the current state of the X Linux project based on repos
 ### Build Tooling
 
 - ISO build script: `xbuild.sh`.
-- WSL rootfs builds live in the dedicated `xlnux/wsl` / `xlnux/wsl-scripts` repositories.
+- WSL rootfs builds live in the dedicated `equislinux/wsl` / `equislinux/wsl-scripts` repositories.
 - ArchISO profile definition is maintained in `profiledef.sh`.
 
 ### Project Operations

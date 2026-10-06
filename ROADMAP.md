@@ -11,7 +11,7 @@ en el `ROADMAP.md` de la raiz del workspace (x-lnux).
 - Autoinstalacion desatendida (cidata + `xauto=1`); atajo `xinstall`.
 - Payload offline (`x-scripts`) con el snapshot del escritorio equisdots
   (hyprland/shell/paletas/motores) + kitty/starship/nvim empaquetados.
-- Red y mirrorlist operativos en el sistema instalado; branding `xlnux/x`.
+- Red y mirrorlist operativos en el sistema instalado; branding `equislinux/x`.
 - Trabajo de la iniciativa reboot integrado en `main`.
 
 ## Sincronizacion

@@ -36,4 +36,4 @@ x/
 ## Build Outputs
 
 - ISO flow (`xbuild.sh`) writes artifacts to `out/`; temporary work lives under `work/`.
-- WSL rootfs builds live in the dedicated `xlnux/wsl` repository.
+- WSL rootfs builds live in the dedicated `equislinux/wsl` repository.

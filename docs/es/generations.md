@@ -5,7 +5,7 @@ pueda versionar el sistema: cada cambio relevante registra un snapshot
 booteable más un manifiesto (`x gen new`), `x gen rollback` cambia el arranque
 por defecto y `x gen restore` recupera rutas individuales. Este documento cubre
 solo el lado del instalador; el motor, la CLI y la semántica viven en
-`xlnux/scripts` (`docs/es/generations.md`).
+`equislinux/scripts` (`docs/es/generations.md`).
 
 ## Layout de disco
 

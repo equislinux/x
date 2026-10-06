@@ -4,7 +4,7 @@ X Linux uses **btrfs subvolumes** so the provisioning payload can version the
 system: every relevant change records a bootable snapshot plus a manifest
 (`x gen new`), `x gen rollback` switches the default boot and `x gen restore`
 recovers individual paths. This document covers only the installer side; the
-engine, CLI and semantics live in `xlnux/scripts`
+engine, CLI and semantics live in `equislinux/scripts`
 (`docs/en/generations.md`).
 
 ## Disk layout

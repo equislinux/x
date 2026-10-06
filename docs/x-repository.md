@@ -11,7 +11,7 @@ The repository is declared in `pacman.conf`:
 # Consumer side (live ISO / installed target): import + locally sign the
 # project key shipped at /etc/pacman.d/x-repo.pub first.
 SigLevel = Required
-Server = https://xlnux.github.io/x-repo/repo/x86_64
+Server = https://equislinux.github.io/x-repo/repo/x86_64
 ```
 
 The build host (`mkarchiso -C pacman.conf`) uses `SigLevel = Never` for `[x]`

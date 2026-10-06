@@ -9,7 +9,7 @@ under `docs/`.
 ## Top-level layout
 
 ```text
-x/  (xlnux/x)
+x/  (equislinux/x)
 |-- airootfs/                  # root filesystem overlay for the ISO/rootfs
 |-- grub/                      # GRUB config used on the ISO (grub.cfg, loopback.cfg)
 |-- syslinux/                  # Syslinux boot config and assets
@@ -119,5 +119,5 @@ bilingual documentation set lives under `docs/en/` and `docs/es/`.
 ## Build outputs
 
 - ISO flow (`xbuild.sh`): `out/` artifacts; temporary work under `work/`.
-- WSL rootfs builds live in the dedicated `xlnux/wsl` repository.
+- WSL rootfs builds live in the dedicated `equislinux/wsl` repository.
 - All build outputs and `build-*.log` files are gitignored.

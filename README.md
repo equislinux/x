@@ -2,7 +2,7 @@
 
 <div align="center">
   <p><b>X</b> is a custom Arch Linux spin focused on simplicity, clean branding, and reproducible builds.</p>
-  <p>It ships its own package repository (<a href="https://github.com/xlnux/x-repo">x-repo</a>) so you can install X-specific packages directly with <code>pacman</code>.</p>
+  <p>It ships its own package repository (<a href="https://github.com/equislinux/x-repo">x-repo</a>) so you can install X-specific packages directly with <code>pacman</code>.</p>
 </div>
 
 <blockquote>
@@ -85,18 +85,18 @@
 
 <h3 align="center"> Build for WSL </h3>
 
-<p>The WSL rootfs is built in <a href="https://github.com/xlnux/wsl">xlnux/wsl</a> (rootfs builder + Windows importer) with provisioning in <a href="https://github.com/xlnux/wsl-scripts">xlnux/wsl-scripts</a>. Published rootfs release: <code>v0.1.0</code>. See <a href="./docs/build-wsl.md">Build WSL Guide</a>.</p>
+<p>The WSL rootfs is built in <a href="https://github.com/equislinux/wsl">equislinux/wsl</a> (rootfs builder + Windows importer) with provisioning in <a href="https://github.com/equislinux/wsl-scripts">equislinux/wsl-scripts</a>. Published rootfs release: <code>v0.1.0</code>. See <a href="./docs/build-wsl.md">Build WSL Guide</a>.</p>
 
 <hr />
 
 <h2 align="center" id="related-repos"> Related Repositories </h2>
 
 <ul>
-  <li><a href="https://github.com/xlnux/x">x:</a> scripts post install to set up xdev environment.</li>
-  <li><a href="https://github.com/xlnux/x-repo">x-repo:</a> X package repository for x.</li>
+  <li><a href="https://github.com/equislinux/x">x:</a> scripts post install to set up xdev environment.</li>
+  <li><a href="https://github.com/equislinux/x-repo">x-repo:</a> X package repository for x.</li>
   <li><a href="https://github.com/xfetch-cli/xfetch">xfetch:</a> official getter for system information created on rust for X but now running in any distro.</li>
-  <li><a href="https://github.com/xlnux/xpm">xpm:</a> X package manager for x.</li>
-  <li><a href="https://github.com/xlnux/xpkg">xpkg:</a> X packager for x developers.</li>
+  <li><a href="https://github.com/equislinux/xpm">xpm:</a> X package manager for x.</li>
+  <li><a href="https://github.com/equislinux/xpkg">xpkg:</a> X packager for x developers.</li>
 </ul>
 
 <h2 align="center" id="related-documents"> Related Documents </h2>
@@ -125,4 +125,4 @@
 
 </div>
 
-- Documentation: https://github.com/xlnux/wiki
+- Documentation: https://github.com/equislinux/wiki

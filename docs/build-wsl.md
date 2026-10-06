@@ -1,19 +1,19 @@
 # Build WSL Guide
 
 X for WSL is built and provisioned from dedicated repositories; this
-repository (`xlnux/x`) only ships the ISO profile and the installer.
+repository (`equislinux/x`) only ships the ISO profile and the installer.
 
 | Repository | Role |
 |------------|------|
-| [`xlnux/wsl`](https://github.com/xlnux/wsl) | `build-rootfs.sh` builds an importable rootfs tarball (`.tar.gz` + `.sha256`) and `install.ps1` imports it on Windows. Published release: `v0.1.0`. |
-| [`xlnux/wsl-scripts`](https://github.com/xlnux/wsl-scripts) | Two-stage in-distro provisioning (`stage-root.sh` / `stage-user.sh`): locale, keymap, timezone, user, shell, sudo and rc files. |
+| [`equislinux/wsl`](https://github.com/equislinux/wsl) | `build-rootfs.sh` builds an importable rootfs tarball (`.tar.gz` + `.sha256`) and `install.ps1` imports it on Windows. Published release: `v0.1.0`. |
+| [`equislinux/wsl-scripts`](https://github.com/equislinux/wsl-scripts) | Two-stage in-distro provisioning (`stage-root.sh` / `stage-user.sh`): locale, keymap, timezone, user, shell, sudo and rc files. |
 
 ## Build
 
 On an Arch-like host:
 
 ```bash
-git clone https://github.com/xlnux/wsl
+git clone https://github.com/equislinux/wsl
 cd wsl && sudo ./build-rootfs.sh
 ```
 
@@ -39,5 +39,5 @@ Tar streams (optionally compressed) import directly; do not unpack first.
 # then terminate and re-enter as the created user for the user stage
 ```
 
-See `xlnux/wsl` and `xlnux/wsl-scripts` for the authoritative flow and
+See `equislinux/wsl` and `equislinux/wsl-scripts` for the authoritative flow and
 options.
