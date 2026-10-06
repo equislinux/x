@@ -473,6 +473,23 @@ class E2E:
             raise E2EError(f"x gen verify did not report a clean match:\n{seg}")
         log(f"verify OK: live system matches generation {RUNNING_ID}")
 
+        # Regression: generations recorded by the pacman hooks must never
+        # freeze /var/lib/pacman/db.lck (it exists during the transaction).
+        log("checking that hooks do not freeze pacman's db.lck")
+        self.console.send("sudo pacman -S --noconfirm nano >/dev/null 2>&1; echo E2E_PKG\" \"_END\n")
+        if self.console.expect_opt(r"[Pp]assword[^\n]*:", 5):
+            self.console.send(f"{self.args.password}\n")
+        self.console.expect(r"E2E_PKG _END", 300)
+        self.console.send("sudo x gen list | tail -3; echo E2E_GENLIST\" \"_END\n")
+        _, seg = self.console.expect(r"E2E_GENLIST _END", 60)
+        if "0002" not in seg:
+            raise E2EError(f"the pacman hook did not record a new generation:\n{seg[-600:]}")
+        self.console.send("sudo find /.snapshots -name db.lck; echo E2E_LOCK\" \"_END\n")
+        _, seg = self.console.expect(r"E2E_LOCK _END", 90)
+        if "db.lck" in seg:
+            raise E2EError(f"a generation froze pacman's db.lck:\n{seg[-600:]}")
+        log("db.lck regression OK (hooks recorded a generation, no lock inside)")
+
         self.stop_qemu()
         log("phase 2 OK: installed system boots with a verified generation")
 
