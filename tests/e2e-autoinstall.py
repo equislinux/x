@@ -414,6 +414,9 @@ class E2E:
         """Assert the base tools (and the desktop payload when requested)."""
         user = self.args.user
         log("checking base tools (xfetch/xtop)")
+        self.expect_ok("pacman -Qq xfetch-bin")
+        self.expect_ok("pacman -Qq xtop-git")
+        self.expect_ok("pacman -Qq x-scripts")
         self.expect_ok("command -v xfetch")
         self.expect_ok("command -v xtop")
         self.expect_ok("xfetch --help 2>&1 | grep -q -- --gen-config")
