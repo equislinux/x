@@ -487,9 +487,9 @@ class E2E:
         _, seg = self.console.expect(r"E2E_GENLIST _END", 60)
         if "0002" not in seg:
             raise E2EError(f"the pacman hook did not record a new generation:\n{seg[-600:]}")
-        self.console.send("sudo find /.snapshots -name db.lck; echo E2E_LOCK\" \"_END\n")
+        self.console.send("sudo find /.snapshots -name 'db.*' -print; echo E2E_LOCK\" \"_END\n")
         _, seg = self.console.expect(r"E2E_LOCK _END", 90)
-        if "db.lck" in seg:
+        if re.search(r"/\.snapshots/\S*db\.lck", seg):
             raise E2EError(f"a generation froze pacman's db.lck:\n{seg[-600:]}")
         log("db.lck regression OK (hooks recorded a generation, no lock inside)")
 
