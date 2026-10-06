@@ -148,7 +148,7 @@ x-release
 x-dev
 
 ## X tools
-xfetch-git
+xfetch-bin
 xtop-git
 
 ## Installer (text)

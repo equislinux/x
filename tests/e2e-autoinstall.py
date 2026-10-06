@@ -416,6 +416,10 @@ class E2E:
         log("checking base tools (xfetch/xtop)")
         self.expect_ok("command -v xfetch")
         self.expect_ok("command -v xtop")
+        self.expect_ok("xfetch --help 2>&1 | grep -q -- --gen-config")
+        self.expect_ok("xfetch --gen-config")
+        self.expect_ok(f"test -f /home/{user}/.config/xfetch/config.jsonc")
+        self.expect_ok("xtop --help 2>&1 | grep -qi plugin")
         if self.args.profile == "full" and self.args.hyprland:
             log("checking desktop payload (zsh + kitty shaders)")
             self.expect_ok(f"test -f /home/{user}/.config/kitty/shaders/x-trail.pipeline")

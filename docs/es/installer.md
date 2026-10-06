@@ -121,7 +121,7 @@ están.
    tmpfs.
 5. **Conjunto de paquetes**:
    - Conjunto base: `base base-devel linux linux-firmware sudo networkmanager
-     openssh git jq x-release btrfs-progs xfetch-git xtop-git kitty pipewire
+     openssh git jq x-release btrfs-progs xfetch-bin xtop-git kitty pipewire
      pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm`, más
      `grub efibootmgr` para
      GRUB y `cryptsetup` para LUKS. `btrfs-progs` lo requiere el motor de
