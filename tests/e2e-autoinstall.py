@@ -547,7 +547,7 @@ class E2E:
             raise E2EError(f"could not read the newest generation id:\n{seg[-600:]}")
         gen = ids[-1]
         seg = self.sudo_expect(f"cat /var/lib/x/generations/{gen}/boot/kernels.tsv", "E2E_MK_TS", 60)
-        if not re.search(r"(?m)^linux\t", seg) or not re.search(r"(?m)^linux-lts\t", seg):
+        if "linux\t" not in seg or "linux-lts\t" not in seg:
             raise E2EError(f"generation {gen} does not archive both kernels:\n{seg[-600:]}")
 
         if self.args.bootloader == "systemd-boot":
