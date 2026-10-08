@@ -69,6 +69,7 @@ to plain text prompts otherwise (`ui.sh`).
 | User password | free text (repeated) | `password` |
 | Package profile | `Full (all packages)` / `Core (minimal system)` | `profile` (`full`/`core`) |
 | Bootloader | `GRUB (BIOS + UEFI)` / `systemd-boot (UEFI only)` | `bootloader` (`grub`/`systemd-boot`) |
+| Kernel | `linux (stable)` / `linux-lts (longterm)` / `linux-zen (desktop)` | `kernel` (`linux`/`linux-lts`/`linux-zen`; `linux-hardened`, `linux-rt`, `linux-rt-lts` accepted via JSON) |
 | Root encryption (LUKS) | yes/no | `encryption` (`yes`/`no`) |
 | LUKS passphrase | reuse user password or dedicated | `luks_password` |
 | Install Hyprland setup | yes/no (requires network) | `hyprland` (`yes`/`no`) |
@@ -91,7 +92,7 @@ Before writing the config, the configurator asks for final confirmation that
 everything on the selected disk will be erased. The resulting JSON looks like:
 
 ```json
-{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","encryption":"no","luks_password":"","hyprland":"no","agents":"no"}
+{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","encryption":"no","luks_password":"","hyprland":"no","agents":"no"}
 ```
 
 The JSON is written to the path in `X_CONFIG_OUT` (default
@@ -213,7 +214,7 @@ The installer supports unattended installation from the live ISO:
 The JSON for an unattended run only requires the base keys, for example:
 
 ```json
-{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}
+{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","kernel":"linux","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}
 ```
 
 `kernel_params` is optional: extra kernel command-line parameters appended to

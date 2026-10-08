@@ -70,6 +70,7 @@ cae a prompts de texto plano en caso contrario (`ui.sh`).
 | Password del usuario | texto libre (repetido) | `password` |
 | Perfil de paquetes | `Full (all packages)` / `Core (minimal system)` | `profile` (`full`/`core`) |
 | Gestor de arranque | `GRUB (BIOS + UEFI)` / `systemd-boot (UEFI only)` | `bootloader` (`grub`/`systemd-boot`) |
+| Kernel | `linux (stable)` / `linux-lts (longterm)` / `linux-zen (desktop)` | `kernel` (`linux`/`linux-lts`/`linux-zen`; `linux-hardened`, `linux-rt`, `linux-rt-lts` aceptados vía JSON) |
 | Cifrado de raíz (LUKS) | sí/no | `encryption` (`yes`/`no`) |
 | Passphrase LUKS | reutilizar la del usuario o una dedicada | `luks_password` |
 | Instalar el setup de Hyprland | sí/no (requiere red) | `hyprland` (`yes`/`no`) |
@@ -94,7 +95,7 @@ final de que todo lo que haya en el disco seleccionado será borrado. El JSON
 resultante tiene este aspecto:
 
 ```json
-{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","encryption":"no","luks_password":"","hyprland":"no","agents":"no"}
+{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","encryption":"no","luks_password":"","hyprland":"no","agents":"no"}
 ```
 
 El JSON se escribe en la ruta de `X_CONFIG_OUT` (por defecto
@@ -223,7 +224,7 @@ El JSON de una ejecución desatendida solo requiere las claves base, por
 ejemplo:
 
 ```json
-{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}
+{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","kernel":"linux","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}
 ```
 
 `kernel_params` es opcional: parámetros extra que se añaden al cmdline del

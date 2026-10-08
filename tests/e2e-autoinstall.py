@@ -258,6 +258,7 @@ class E2E:
             f'"disk":"/dev/vda","hostname":"{self.args.hostname}",'
             f'"username":"{self.args.user}","password":"{self.args.password}",'
             f'"profile":"{self.args.profile}","bootloader":"{self.args.bootloader}",'
+            f'"kernel":"{self.args.kernel}",'
             f'"encryption":"{self.args.encryption}","hyprland":"{hypr}",'
             f'"agents":"{agents}"{luks},'
             '"kernel_params":"console=ttyS0"'
@@ -410,6 +411,33 @@ class E2E:
         if "E2E_CHK _FAIL" in seg:
             raise E2EError(f"check failed: {check}\n{seg[-800:]}")
 
+    def sudo_expect(self, cmd: str, sentinel: str, timeout: float = 90) -> str:
+        """Run a command through sudo on the console, handling the password prompt."""
+        assert self.console is not None
+        self.console.send(f'sudo {cmd}; echo {sentinel}" "_END\n')
+        if self.console.expect_opt(r"[Pp]assword[^\n]*:", 5):
+            self.console.send(f"{self.args.password}\n")
+        _, seg = self.console.expect(re.escape(sentinel) + r" _END", timeout)
+        return seg
+
+    def reboot_and_login(self) -> None:
+        """Reboot the guest and log back in on the serial console."""
+        assert self.console is not None
+        self.console.send("sudo systemctl reboot\n")
+        if self.console.expect_opt(r"[Pp]assword[^\n]*:", 5):
+            self.console.send(f"{self.args.password}\n")
+        if self.args.encryption == "yes":
+            self.console.expect(r"[Ee]nter passphrase", self.args.boot_timeout)
+            self.console.send(f"{self.args.password}\n")
+        self.console.expect(r"login:", self.args.boot_timeout)
+        self.console.send(f"{self.args.user}\n")
+        self.console.expect(r"[Pp]assword[^\n]*:", 60)
+        self.console.send(f"{self.args.password}\n")
+        self.console.expect(r"[$#] ", 60)
+        self.console.send('echo E2E_LOGIN" "_OK\n')
+        self.console.expect(r"E2E_LOGIN _OK", 60)
+        log("re-login after reboot OK")
+
     def verify_payload(self) -> None:
         """Assert the base tools (and the desktop payload when requested)."""
         user = self.args.user
@@ -417,6 +445,11 @@ class E2E:
         self.expect_ok("pacman -Qq xfetch-bin")
         self.expect_ok("pacman -Qq xtop-git")
         self.expect_ok("pacman -Qq x-scripts")
+        self.expect_ok(f"pacman -Qq {self.args.kernel}")
+        self.expect_ok(f"pacman -Qq {self.args.kernel}-headers")
+        self.expect_ok(
+            f'test "$(cat /usr/lib/modules/$(uname -r)/pkgbase)" = "{self.args.kernel}"'
+        )
         self.expect_ok("command -v xfetch")
         self.expect_ok("command -v xtop")
         self.expect_ok("xfetch --help 2>&1 | grep -q -- --gen-config")
@@ -493,8 +526,68 @@ class E2E:
             raise E2EError(f"a generation froze pacman's db.lck:\n{seg[-600:]}")
         log("db.lck regression OK (hooks recorded a generation, no lock inside)")
 
+        if self.args.multikernel:
+            self.verify_multikernel()
+
         self.stop_qemu()
         log("phase 2 OK: installed system boots with a verified generation")
+
+    def verify_multikernel(self) -> None:
+        """Adds linux-lts, asserts per-kernel entries, reboots and removes it."""
+        log("multikernel: installing linux-lts through 'x kernel install'")
+        seg = self.sudo_expect("x kernel install linux-lts --yes", "E2E_MK_INSTALL", 900)
+        if "installed linux-lts" not in seg:
+            raise E2EError(f"x kernel install did not report linux-lts:\n{seg[-800:]}")
+        self.expect_ok("pacman -Qq linux-lts")
+        self.expect_ok("pacman -Qq linux-lts-headers")
+
+        seg = self.sudo_expect("x gen list | tail -2", "E2E_MK_GEN", 60)
+        ids = re.findall(r"\b(\d{4})\b", seg)
+        if not ids:
+            raise E2EError(f"could not read the newest generation id:\n{seg[-600:]}")
+        gen = ids[-1]
+        seg = self.sudo_expect(f"cat /.snapshots/{gen}/boot/kernels.tsv", "E2E_MK_TS", 60)
+        if not re.search(r"(?m)^linux\t", seg) or not re.search(r"(?m)^linux-lts\t", seg):
+            raise E2EError(f"generation {gen} does not archive both kernels:\n{seg[-600:]}")
+
+        if self.args.bootloader == "systemd-boot":
+            self.expect_ok("grep -rq vmlinuz-linux-lts /boot/loader/entries")
+        else:
+            self.expect_ok("grep -q vmlinuz-linux-lts /boot/grub/custom.cfg")
+        log(f"multikernel: generation {gen} archives both kernels; the entry exists")
+
+        self.reboot_and_login()
+        self.expect_ok("pacman -Qq linux-lts")
+        self.expect_ok('test "$(cat /usr/lib/modules/$(uname -r)/pkgbase)" = "linux"')
+
+        log("multikernel: the running kernel must be protected from removal")
+        seg = self.sudo_expect("x kernel remove linux", "E2E_MK_GUARD", 60)
+        if "cannot remove the running kernel" not in seg:
+            raise E2EError(f"removing the running kernel was not refused:\n{seg[-600:]}")
+
+        log("multikernel: removing linux-lts")
+        seg = self.sudo_expect("x kernel remove linux-lts --yes", "E2E_MK_REMOVE", 600)
+        if "removed linux-lts" not in seg:
+            raise E2EError(f"x kernel remove did not report linux-lts:\n{seg[-800:]}")
+        self.console.send(
+            'if pacman -Qq linux-lts >/dev/null 2>&1; then echo E2E_MK_GONE" "_FAIL; '
+            'else echo E2E_MK_GONE" "_OK; fi\n'
+        )
+        _, seg = self.console.expect(r"E2E_MK_GONE _(?:OK|FAIL)", 30)
+        if "E2E_MK_GONE _FAIL" in seg:
+            raise E2EError("linux-lts is still installed after 'x kernel remove'")
+
+        seg = self.sudo_expect("x gen list | tail -1", "E2E_MK_GEN2", 60)
+        ids = re.findall(r"\b(\d{4})\b", seg)
+        gen2 = ids[-1] if ids else gen
+        seg = self.sudo_expect(f"cat /.snapshots/{gen2}/boot/kernels.tsv", "E2E_MK_TS2", 60)
+        if "linux-lts" in seg:
+            raise E2EError(f"generation {gen2} still references linux-lts:\n{seg[-600:]}")
+
+        seg = self.sudo_expect("x gen verify", "E2E_MK_VERIFY", 240)
+        if "matches generation" not in seg:
+            raise E2EError(f"x gen verify failed after removing linux-lts:\n{seg[-600:]}")
+        log("multikernel OK: install -> both entries + generation -> reboot -> remove")
 
     def run(self) -> int:
         try:
@@ -532,6 +625,17 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     ap.add_argument("--workdir", type=Path, default=WORKSPACE / "tmp" / "e2e")
     ap.add_argument("--profile", default="core", choices=("core", "full"))
     ap.add_argument("--bootloader", default="grub", choices=("grub", "systemd-boot"))
+    ap.add_argument(
+        "--kernel",
+        default="linux",
+        choices=("linux", "linux-lts", "linux-zen", "linux-hardened", "linux-rt", "linux-rt-lts"),
+        help="kernel installed by the installer (JSON kernel=...)",
+    )
+    ap.add_argument(
+        "--multikernel",
+        action="store_true",
+        help="after install: add linux-lts via 'x kernel install', assert both boot entries, reboot and remove it",
+    )
     ap.add_argument("--encryption", default="no", choices=("no", "yes"))
     ap.add_argument(
         "--hyprland",

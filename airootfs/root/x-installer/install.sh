@@ -34,11 +34,16 @@ AGENTS="$(jget agents)";              AGENTS="${AGENTS:-no}"
 MODE="$(jget mode)";                  MODE="${MODE:-wipe}"
 ESP_OVERRIDE="$(jget esp)"
 MIN_SIZE="$(jget min_size)";          MIN_SIZE="${MIN_SIZE:-20}"
+KERNEL="$(jget kernel)";              KERNEL="${KERNEL:-linux}"
 KERNEL_PARAMS="$(jget kernel_params)"
 
 [[ -n "$DISK" && -n "$HOST" && -n "$USER" ]] || { echo "installer: incomplete JSON" >&2; exit 1; }
 [[ "$MODE" == "wipe" || "$MODE" == "dualboot" ]] || { echo "installer: invalid mode '$MODE' (wipe|dualboot)" >&2; exit 1; }
 [[ "$MIN_SIZE" =~ ^[0-9]+$ ]] || { echo "installer: min_size must be a number of GiB" >&2; exit 1; }
+case "$KERNEL" in
+    linux|linux-lts|linux-zen|linux-hardened|linux-rt|linux-rt-lts) ;;
+    *) echo "installer: unsupported kernel '$KERNEL' (linux|linux-lts|linux-zen|linux-hardened|linux-rt|linux-rt-lts)" >&2; exit 1 ;;
+esac
 if [[ -n "$KERNEL_PARAMS" && ! "$KERNEL_PARAMS" =~ ^[A-Za-z0-9_=.,:/@%+-]+([[:space:]][A-Za-z0-9_=.,:/@%+-]+)*$ ]]; then
     echo "installer: kernel_params contains unsupported characters" >&2
     exit 1
@@ -58,6 +63,7 @@ if [[ "$DRY" == "1" ]]; then
     echo "  user:      $USER"
     echo "  language:  $LANG_CODE ($LOCALE)  keyboard: $KEYMAP  timezone: $TIMEZONE"
     echo "  profile:   $PROFILE"
+    echo "  kernel:    $KERNEL"
     echo "  bootloader:$BOOT"
     echo "  encryption:$ENC   hyprland:$HYPR   agents:$AGENTS"
     echo "  extra kernel params: ${KERNEL_PARAMS:-none}"
@@ -196,7 +202,7 @@ chmod 700 "$MNT/.snapshots" "$MNT/var/lib/x"
 mount "$EFI" "$MNT/boot"
 
 # Package set per profile.
-EXTRA="base base-devel linux linux-firmware sudo networkmanager openssh git jq x-release btrfs-progs xfetch-bin xtop-git"
+EXTRA="base base-devel $KERNEL $KERNEL-headers linux-firmware sudo networkmanager openssh git jq x-release btrfs-progs xfetch-bin xtop-git"
 # Terminal and audio stack are always installed (work without the Hyprland setup).
 EXTRA="$EXTRA kitty pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm"
 [[ "$BOOT" == "grub" ]] && EXTRA="$EXTRA grub efibootmgr"
@@ -386,8 +392,8 @@ console-mode max
 EOF
     cat > "$MNT/boot/loader/entries/x.conf" <<EOF
 title   X Linux
-linux   /vmlinuz-linux
-initrd  /initramfs-linux.img
+linux   /vmlinuz-$KERNEL
+initrd  /initramfs-$KERNEL.img
 options $CMDROOT
 EOF
 else
