@@ -546,7 +546,7 @@ class E2E:
         if not ids:
             raise E2EError(f"could not read the newest generation id:\n{seg[-600:]}")
         gen = ids[-1]
-        seg = self.sudo_expect(f"cat /.snapshots/{gen}/boot/kernels.tsv", "E2E_MK_TS", 60)
+        seg = self.sudo_expect(f"cat /var/lib/x/generations/{gen}/boot/kernels.tsv", "E2E_MK_TS", 60)
         if not re.search(r"(?m)^linux\t", seg) or not re.search(r"(?m)^linux-lts\t", seg):
             raise E2EError(f"generation {gen} does not archive both kernels:\n{seg[-600:]}")
 
@@ -580,7 +580,7 @@ class E2E:
         seg = self.sudo_expect("x gen list | tail -1", "E2E_MK_GEN2", 60)
         ids = re.findall(r"(?m)^(\d{4})\b", seg)
         gen2 = ids[-1] if ids else gen
-        seg = self.sudo_expect(f"cat /.snapshots/{gen2}/boot/kernels.tsv", "E2E_MK_TS2", 60)
+        seg = self.sudo_expect(f"cat /var/lib/x/generations/{gen2}/boot/kernels.tsv", "E2E_MK_TS2", 60)
         if "linux-lts" in seg:
             raise E2EError(f"generation {gen2} still references linux-lts:\n{seg[-600:]}")
 
