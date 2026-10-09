@@ -542,9 +542,11 @@ class E2E:
         self.expect_ok("pacman -Qq linux-lts-headers")
 
         seg = self.sudo_expect(
-            "sh -c 'ls -1 /var/lib/x/generations | LC_ALL=C sort | tail -2'", "E2E_MK_GEN", 60
+            "sh -c 'for g in $(ls -1 /var/lib/x/generations | LC_ALL=C sort | tail -2); do echo GEN:$g; done'",
+            "E2E_MK_GEN",
+            60,
         )
-        ids = re.findall(r"(\d{4})", seg)
+        ids = re.findall(r"GEN:(\d{4})", seg)
         if not ids:
             raise E2EError(f"could not read the newest generation id:\n{seg[-600:]}")
         gen = ids[-1]
@@ -580,9 +582,11 @@ class E2E:
             raise E2EError("linux-lts is still installed after 'x kernel remove'")
 
         seg = self.sudo_expect(
-            "sh -c 'ls -1 /var/lib/x/generations | LC_ALL=C sort | tail -1'", "E2E_MK_GEN2", 60
+            "sh -c 'for g in $(ls -1 /var/lib/x/generations | LC_ALL=C sort | tail -1); do echo GEN:$g; done'",
+            "E2E_MK_GEN2",
+            60,
         )
-        ids = re.findall(r"(\d{4})", seg)
+        ids = re.findall(r"GEN:(\d{4})", seg)
         gen2 = ids[-1] if ids else gen
         seg = self.sudo_expect(f"cat /var/lib/x/generations/{gen2}/boot/kernels.tsv", "E2E_MK_TS2", 60)
         if "linux-lts" in seg:
