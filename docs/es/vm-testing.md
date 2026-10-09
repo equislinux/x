@@ -100,6 +100,8 @@ en la consola serie, apaga limpiamente, arranca el disco instalado, entra por
 python3 tests/e2e-autoinstall.py --mode uefi
 python3 tests/e2e-autoinstall.py --mode bios
 python3 tests/e2e-autoinstall.py --mode uefi --profile full --timeout 5400
+python3 tests/e2e-autoinstall.py --mode uefi --kernel linux-lts
+python3 tests/e2e-autoinstall.py --mode uefi --multikernel
 ```
 
 Los artefactos (disco, logs serie y de QEMU) quedan en `../tmp/e2e/`. El JSON
@@ -114,7 +116,7 @@ entrada **autoinstall** en el menú (o pulsá `a`).
 ```bash
 SEED=/tmp/cidata
 rm -rf "$SEED" && mkdir -p "$SEED"
-printf '{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}\n' \
+printf '{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","kernel":"linux","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}\n' \
   > "$SEED/x-install.json"
 
 qemu-img create -f raw /home/x0z/cidata.img 64M

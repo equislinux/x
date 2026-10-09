@@ -48,6 +48,10 @@ the `/.snapshots/0001` snapshot and writes the boot entries:
 - GRUB: `/boot/grub/custom.cfg` with `set default=x-gen-0001` and one
   `menuentry` per kept generation.
 
+With several kernels installed, each generation gets one entry per pkgbase
+(`x-gen-0001-linux-lts.conf`, `...-linux-zen.conf`); `x kernel list|install|remove`
+manages them (removal keeps the archived kernels bootable via rollback).
+
 `X_GEN_CMDLINE` records the real target cmdline because `/proc/cmdline` inside
 the chroot belongs to the live ISO; `X_GEN_LIVE_SUBVOL` tells the engine that
 generation 0001 is the live `/@` subvol (not a `/.snapshots` fork).

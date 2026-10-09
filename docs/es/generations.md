@@ -51,6 +51,10 @@ arranque:
 - GRUB: `/boot/grub/custom.cfg` con `set default=x-gen-0001` y un `menuentry`
   por generación retenida.
 
+Con varios kernels instalados, cada generación tiene una entry por pkgbase
+(`x-gen-0001-linux-lts.conf`, `...-linux-zen.conf`); `x kernel list|install|remove`
+los gestiona (el borrado mantiene los kernels archivados arrancables vía rollback).
+
 `X_GEN_CMDLINE` registra el cmdline real del destino porque `/proc/cmdline`
 dentro del chroot pertenece al ISO en vivo; `X_GEN_LIVE_SUBVOL` le dice al
 motor que la generación 0001 es el subvolumen vivo `/@` (no una bifurcación en

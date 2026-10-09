@@ -40,6 +40,7 @@
   <li><b>Custom branding</b> — Identity applied to <code>/etc/os-release</code>, GRUB, MOTD, and wallpapers.</li>
   <li><b>X package repository</b> — Dedicated <code>[x]</code> repo in <code>pacman.conf</code> for branding and tools.</li>
   <li><b>Script-based provisioning</b> — System and user setup driven by scripts instead of a graphical installer (Calamares removed).</li>
+  <li><b>btrfs generations</b> — Bootable snapshots with rollback, per-kernel boot entries and <code>x kernel list|install|remove</code> (linux, linux-lts, linux-zen).</li>
   <li><b>Post-install automation</b> — Scripts to apply branding and setup tasks after installation.</li>
   <li><b>WSL support</b> — Tools to build a WSL-importable root filesystem tarball.</li>
 </ul>
