@@ -592,9 +592,12 @@ class E2E:
         if "linux-lts" in seg:
             raise E2EError(f"generation {gen2} still references linux-lts:\n{seg[-600:]}")
 
+        # A frozen generation's /etc/fstab is intentionally patched to its own
+        # subvol (xgen_patch_snapshot_fstab), so its /etc hash always differs
+        # from the live tree; the package capture is the contract here.
         seg = self.sudo_expect(f"x gen verify {gen2}", "E2E_MK_VERIFY", 240)
-        if "matches generation" not in seg:
-            raise E2EError(f"x gen verify failed after removing linux-lts:\n{seg[-600:]}")
+        if not re.search(r"packages:\s*\n\s*\(match\)", seg):
+            raise E2EError(f"x gen verify reports package drift after removing linux-lts:\n{seg[-800:]}")
         log("multikernel OK: install -> both entries + generation -> reboot -> remove")
 
     def run(self) -> int:
