@@ -1,13 +1,14 @@
 <h1 align="center"> X Linux </h1>
 
 <div align="center">
-  <p><b>X</b> is a custom Arch Linux spin focused on simplicity, clean branding, and reproducible builds.</p>
-  <p>It ships its own package repository (<a href="https://github.com/equislinux/x-repo">x-repo</a>) so you can install X-specific packages directly with <code>pacman</code>.</p>
+  <p><b>Arch-based, snapshot-first Linux with a script-driven installer and its own package tooling.</b></p>
+  <p>
+    <a href="https://equislinux.github.io/web/">Website</a> •
+    <a href="https://equislinux.github.io/web/en/docs/">Documentation</a> •
+    <a href="https://equislinux.github.io/web/download/latest/">Download</a> •
+    <a href="https://github.com/equislinux/wiki">Wiki sources</a>
+  </p>
 </div>
-
-<blockquote>
-  <p align="center"><b>Project status:</b> Under active development</p>
-</blockquote>
 
 <p align="center">
     <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-blue.svg">
@@ -16,114 +17,125 @@
     <img alt="Status" src="https://img.shields.io/badge/Status-Active%20Development-2ea44f">
 </p>
 
+<a href="https://equislinux.github.io/web/">
+  <img src="https://equislinux.github.io/web/showcase/hero-desktop.jpg" alt="X Linux — Hyprland desktop (dark theme)" width="100%">
+</a>
+
 <hr />
 
 <h2 align="center"> Table of Contents </h2>
 <p align="center">
-  <a href="#overview">Overview</a> •
+  <a href="#why-x">Why X</a> •
+  <a href="#install">Install</a> •
+  <a href="#screenshots">Screenshots</a> •
+  <a href="#build-the-iso">Build the ISO</a> •
   <a href="#project-status">Project Status</a> •
-  <a href="#project-composition">Project Composition</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#related-repos">Related Repositories</a> •
-  <a href="#related-documents">Related Documents</a> •
-  <a href="#x">X</a>
+  <a href="#repositories">Repositories</a> •
+  <a href="#documentation">Documentation</a>
 </p>
 
 <hr />
 
-<h2 align="center" id="overview"> Overview </h2>
+<h2 align="center" id="why-x"> Why X </h2>
 
-<p>X provides a minimal yet polished Arch-based system with its own identity. It is built with the standard <code>mkarchiso</code> workflow, layering a custom profile, branding assets, and post-install automation.</p>
-
-<h3 align="center"> Key Features </h3>
 <ul>
-  <li><b>Custom branding</b> — Identity applied to <code>/etc/os-release</code>, GRUB, MOTD, and wallpapers.</li>
-  <li><b>X package repository</b> — Dedicated <code>[x]</code> repo in <code>pacman.conf</code> for branding and tools.</li>
-  <li><b>Script-based provisioning</b> — System and user setup driven by scripts instead of a graphical installer (Calamares removed).</li>
-  <li><b>btrfs generations</b> — Bootable snapshots with rollback, per-kernel boot entries and <code>x kernel list|install|remove</code> (linux, linux-lts, linux-zen).</li>
-  <li><b>Post-install automation</b> — Scripts to apply branding and setup tasks after installation.</li>
-  <li><b>WSL support</b> — Tools to build a WSL-importable root filesystem tarball.</li>
+  <li><b>Bootable generations</b> — every package transaction is captured as a btrfs snapshot with its own boot entry. Roll back, diff, verify, pin, or export signed and encrypted bundles (<code>x gen</code>).</li>
+  <li><b>Multi-kernel</b> — pick <code>linux</code>, <code>linux-lts</code> or <code>linux-zen</code> at install time or later with <code>x kernel install|remove</code>, protected by guard rails for the running and last kernel.</li>
+  <li><b>Script-driven installer</b> — BIOS/UEFI, GRUB/systemd-boot, LUKS, dualboot, core or full (Hyprland) profiles, all in the terminal.</li>
+  <li><b>Signed repository and native tooling</b> — the <code>[x]</code> pacman repository is signed (<code>SigLevel = Required</code>); <a href="https://github.com/equislinux/xpm">xpm</a> (package manager) and <a href="https://github.com/equislinux/xpkg">xpkg</a> (builder) drive a native <code>.xp</code> endpoint end-to-end.</li>
+  <li><b>WSL</b> — an importable rootfs plus a friendly first-run setup: <a href="https://github.com/equislinux/wsl">equislinux/wsl</a> and <a href="https://github.com/equislinux/wsl-scripts">wsl-scripts</a>.</li>
 </ul>
+
+<hr />
+
+<h2 align="center" id="install"> Install </h2>
+
+<ol>
+  <li><b>Download</b> the latest signed ISO from the stable link: <a href="https://equislinux.github.io/web/download/latest/">equislinux.github.io/web/download/latest</a></li>
+  <li><b>Flash</b> it to a USB drive:
+    <pre><code>sudo dd if=x-&lt;version&gt;-x86_64.iso of=/dev/sdX bs=8M conv=fsync status=progress</code></pre>
+  </li>
+  <li><b>Boot</b> it and follow the text installer — disk layout, kernel and profile. Full guide: <a href="./docs/installation.md">docs/installation.md</a>.</li>
+</ol>
+
+<hr />
+
+<h2 align="center" id="screenshots"> Screenshots </h2>
+
+<table>
+  <tr>
+    <td width="50%"><img src="https://equislinux.github.io/web/showcase/tools.png" alt="xtop and xfetch on the Hyprland desktop"></td>
+    <td width="50%"><img src="https://equislinux.github.io/web/showcase/boot-generations.png" alt="Boot menu with bootable generations"></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="https://equislinux.github.io/web/showcase/installer.png" alt="Text installer: btrfs subvolumes and keyring"></td>
+    <td width="50%"><img src="https://equislinux.github.io/web/showcase/desktop-light.jpg" alt="X Linux desktop (light theme)"></td>
+  </tr>
+</table>
+
+<p align="center"><i>
+xtop and xfetch on the Hyprland desktop · the boot menu where every transaction is a generation · the text installer · the light theme
+</i></p>
+
+<p align="center">
+  <img src="https://equislinux.github.io/web/showcase/demo.gif" alt="X Linux desktop demo — xtop and xfetch on Hyprland" width="720">
+</p>
+
+<hr />
+
+<h2 align="center" id="build-the-iso"> Build the ISO </h2>
+
+<pre><code>sudo pacman -S archiso
+sudo ./xbuild.sh</code></pre>
+
+<p>Output: <code>./out/*.iso</code> · Guide: <a href="./docs/build-iso.md">docs/build-iso.md</a> · VM testing: <a href="./docs/vm-testing.md">docs/vm-testing.md</a></p>
 
 <hr />
 
 <h2 align="center" id="project-status"> Project Status </h2>
 
 <ul>
-  <li><b>Development stage:</b> Active.</li>
-  <li><b>Build model:</b> Local <code>mkarchiso</code> flow for ISO and dedicated scripts for WSL rootfs.</li>
-  <li><b>Automation:</b> Roadmap-to-issues synchronization is configured in GitHub Actions.</li>
-  <li><b>Focus areas:</b> Package repository maturity, installer UX, documentation, and release pipeline hardening.</li>
+  <li><b>Active development.</b> Validated locally: full test suite, a real-btrfs suite and QEMU end-to-end runs (install → boot → generations → rollback).</li>
+  <li><b>Releases:</b> signed ISOs published on SourceForge; the stable link above always points to the current release.</li>
+  <li><b>Detailed state:</b> <a href="./docs/project-state.md">docs/project-state.md</a> · <a href="./docs/generations.md">docs/generations.md</a></li>
 </ul>
-
-<p>Detailed status report: <a href="./docs/project-state.md">Project State</a></p>
 
 <hr />
 
-<h2 align="center" id="project-composition"> Project Composition </h2>
+<h2 align="center" id="repositories"> Repositories </h2>
 
 <ul>
-  <li><code>airootfs/</code>: Root filesystem overlay (system config, branding, installer automation).</li>
-  <li><code>profiledef.sh</code>: ArchISO profile metadata, boot modes, and file permissions.</li>
-  <li><code>packages.x86_64</code>: Package manifest for ISO builds.</li>
-  <li><code>pacman.conf</code>: Package manager configuration, including the <code>[x]</code> repository.</li>
-  <li><code>xbuild.sh</code>: ISO build script.</li>
-  <li><code>ROADMAP.md</code>: Project roadmap used as issue-sync source.</li>
+  <li><a href="https://github.com/equislinux/x">x</a> — this repo: archiso profile, text installer and ISO build.</li>
+  <li><a href="https://github.com/equislinux/scripts">scripts</a> — provisioning payload and the <code>x</code> CLI (generations, setup, themes, kernels).</li>
+  <li><a href="https://github.com/equislinux/x-repo">x-repo</a> — signed <code>[x]</code> package repository and portals.</li>
+  <li><a href="https://github.com/equislinux/xpm">xpm</a> — package manager (Rust, ALPM format, native <code>.xp</code>).</li>
+  <li><a href="https://github.com/equislinux/xpkg">xpkg</a> — package builder (XBUILD/PKGBUILD to <code>.xp</code>).</li>
+  <li><a href="https://github.com/equislinux/wsl">wsl</a> — importable WSL rootfs and Windows importer.</li>
+  <li><a href="https://github.com/equislinux/wsl-scripts">wsl-scripts</a> — WSL first-run setup.</li>
+  <li><a href="https://github.com/equislinux/web">web</a> — documentation portal (this site).</li>
+  <li><a href="https://github.com/equislinux/wiki">wiki</a> — documentation sources (English/Spanish).</li>
 </ul>
-
-<p>Detailed structure reference: <a href="./docs/project-structure.md">Project Structure</a></p>
 
 <hr />
 
-<h2 align="center" id="quick-start"> Quick Start </h2>
-
-<h3 align="center"> Build the ISO </h3>
-
-<pre><code>sudo pacman -S archiso
-./xbuild.sh</code></pre>
-
-<p>Output: <code>./out/*.iso</code></p>
-
-<h3 align="center"> Build for WSL </h3>
-
-<p>The WSL rootfs is built in <a href="https://github.com/equislinux/wsl">equislinux/wsl</a> (rootfs builder + Windows importer) with provisioning in <a href="https://github.com/equislinux/wsl-scripts">equislinux/wsl-scripts</a>. Published rootfs release: <code>v0.1.0</code>. See <a href="./docs/build-wsl.md">Build WSL Guide</a>.</p>
-
-<hr />
-
-<h2 align="center" id="related-repos"> Related Repositories </h2>
-
-<ul>
-  <li><a href="https://github.com/equislinux/x">x:</a> scripts post install to set up xdev environment.</li>
-  <li><a href="https://github.com/equislinux/x-repo">x-repo:</a> X package repository for x.</li>
-  <li><a href="https://github.com/xfetch-cli/xfetch">xfetch:</a> official getter for system information created on rust for X but now running in any distro.</li>
-  <li><a href="https://github.com/equislinux/xpm">xpm:</a> X package manager for x.</li>
-  <li><a href="https://github.com/equislinux/xpkg">xpkg:</a> X packager for x developers.</li>
-</ul>
-
-<h2 align="center" id="related-documents"> Related Documents </h2>
+<h2 align="center" id="documentation"> Documentation </h2>
 
 <ul>
   <li><a href="./docs/project-state.md">Project State</a></li>
   <li><a href="./docs/project-structure.md">Project Structure</a></li>
   <li><a href="./docs/build-iso.md">Build ISO Guide</a></li>
   <li><a href="./docs/build-wsl.md">Build WSL Guide</a></li>
-  <li><a href="./docs/x-repository.md">X Repository Guide</a></li>
   <li><a href="./docs/installation.md">Installation Guide</a></li>
+  <li><a href="./docs/generations.md">Generations</a></li>
+  <li><a href="./docs/x-repository.md">X Repository Guide</a></li>
+  <li><a href="./docs/vm-testing.md">VM Testing</a></li>
   <li><a href="./ROADMAP.md">Roadmap</a></li>
-  <li><a href="./CODE_OF_CONDUCT.md">Code of Conduct</a></li>
-  <li><a href="./CONTRIBUTING.md">Contributions</a></li>
-  <li><a href="./SECURITY.md">Security</a></li>
-  <li><a href="./SUPPORT.md">Support</a></li>
+  <li><a href="./CONTRIBUTING.md">Contributing</a> · <a href="./CODE_OF_CONDUCT.md">Code of Conduct</a> · <a href="./SECURITY.md">Security</a> · <a href="./SUPPORT.md">Support</a></li>
 </ul>
 
-
-<div id="x" align="center">
+<div align="center">
 <h2>X</h2>
-
-<a href="https://xscriptor.io">X Web</a>
- & 
- <a href="https://github.com/xscriptor">X Github Profile</a>
-
+<a href="https://equislinux.github.io/web/">Website &amp; Docs</a> &middot; <a href="https://github.com/equislinux">GitHub</a>
 </div>
 
-- Documentation: https://github.com/equislinux/wiki
+- License: GPL-3.0 · Documentation: https://github.com/equislinux/wiki
