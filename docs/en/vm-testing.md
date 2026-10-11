@@ -6,8 +6,8 @@ Helper commands to run the X live ISO and to boot an installed disk with QEMU.
 Adjust the paths (`ISO`, `DISK`) to your machine.
 
 ```bash
-ISO=/home/x0z/Documents/repos/x-lnux/x/out/x-2026.09.06-x86_64.iso
-DISK=/home/x0z/x-vm.qcow2
+ISO="$HOME/Documents/repos/xlnux/x/out/x-<version>-x86_64.iso"
+DISK="$HOME/x-vm.qcow2"
 ```
 
 Adjust `ISO` to the artifact produced by `xbuild.sh` (see
@@ -116,9 +116,9 @@ rm -rf "$SEED" && mkdir -p "$SEED"
 printf '{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","kernel":"linux","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}\n' \
   > "$SEED/x-install.json"
 
-qemu-img create -f raw /home/x0z/cidata.img 64M
-mkfs.vfat -n cidata /home/x0z/cidata.img
-mcopy -i /home/x0z/cidata.img "$SEED/x-install.json" ::x-install.json
+qemu-img create -f raw "$SEED/cidata.img" 64M
+mkfs.vfat -n cidata "$SEED/cidata.img"
+mcopy -i "$SEED/cidata.img" "$SEED/x-install.json" ::x-install.json
 ```
 
 Then add the seed disk to the ISO boot command and select the autoinstall
@@ -127,7 +127,7 @@ entry (`xauto=1` is already part of its kernel command line):
 ```bash
 qemu-system-x86_64 -enable-kvm -m 6144 -smp 4 -cpu host \
   -cdrom "$ISO" \
-  -drive file=/home/x0z/cidata.img,format=raw,if=virtio \
+  -drive file="$SEED/cidata.img",format=raw,if=virtio \
   -netdev user,id=net0 -device virtio-net-pci,netdev=net0 \
   -boot d
 ```
