@@ -34,15 +34,16 @@ X (`x-release`, `x-dev`) se instalan con `pacman`.
 
 ## Estado del proyecto
 
-La distribución está en desarrollo activo. El trabajo actual es la iniciativa
-*reboot* (aprovisionamiento basado en scripts al estilo de Omarchy, con
-decisiones y *tooling* propios de X). Consulta `ROADMAP.md` para la hoja de
-ruta y `docs/project-state.md` para una instantánea del estado.
+La distribución está en desarrollo activo. Los ISOs firmados se publican en
+SourceForge (el enlace estable es
+<https://equislinux.github.io/web/download/latest/>) y los dos canales de
+paquetes —el repositorio pacman `[x]` y el endpoint nativo `.xp`— están vivos.
+Consulta `ROADMAP.md` y `docs/project-state.md`.
 
 ## Cómo se mapea este repositorio en la organización
 
-El *workspace* agrupa cada repositorio de equislinux bajo `x-lnux/`. Los nombres de
-los repos se renombraron en su momento, por lo que las referencias antiguas a
+Cada repositorio vive en su propia carpeta bajo la organización `equislinux` en
+GitHub. Los nombres cambiaron con el tiempo, así que las referencias antiguas a
 `x-linux` (la distro) o a un repo `x` de scripts deben leerse con este mapeo:
 
 | Repositorio | Rol |
@@ -52,6 +53,8 @@ los repos se renombraron en su momento, por lo que las referencias antiguas a
 | `equislinux/x-repo` | Repositorio binario de paquetes de X (alojado en GitHub Pages, `[x]` en `pacman.conf`) y el portal de paquetes. |
 | `equislinux/xpm` | Gestor de paquetes de X (Rust). |
 | `equislinux/xpkg` | Herramienta de empaquetado de X para desarrolladores (Rust). |
+| `equislinux/wsl` / `equislinux/wsl-scripts` | Rootfs de WSL (release publicado `v0.1.0`) y su setup de primer arranque. |
+| `equislinux/wiki` / `equislinux/web` | Fuentes de documentación (en/es) y el portal de documentación. |
 | `equisdots/*` | Org dueña del stack de escritorio (config Lua de Hyprland, shell Quickshell, paletas, motores, login SDDM) consumido de solo lectura por la herramienta de instalación de Hyprland en `scripts`; su instalador oficial es `equisdots/dots`. |
 
 Documentación relacionada en este repositorio:

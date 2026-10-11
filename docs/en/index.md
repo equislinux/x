@@ -27,16 +27,17 @@ the installed system, so X branding and tooling packages (`x-release`,
 
 ## Project status
 
-The distribution is under active development. The current work is the *reboot*
-initiative (script-based provisioning in the style of Omarchy, with X's own
-decisions and tooling). See `ROADMAP.md` for the roadmap and
-`docs/project-state.md` for a state snapshot.
+The distribution is under active development. Signed ISOs are published on
+SourceForge (the stable link is
+<https://equislinux.github.io/web/download/latest/>), and both package
+channels — the pacman `[x]` repository and the native `.xp` endpoint — are
+live. See `ROADMAP.md` and `docs/project-state.md`.
 
 ## How this repository maps to the organization
 
-The workspace groups each equislinux repository under `x-lnux/`. Repo names were
-renamed at some point, so older references to `x-linux` (the distro) or to an
-`x` scripts repo must be read with this mapping in mind:
+Each repository lives in its own folder under the `equislinux` organization on
+GitHub. Repo names changed over time, so older references to `x-linux` (the
+distro) or to an `x` scripts repo must be read with this mapping in mind:
 
 | Repository | Role |
 |------------|------|
@@ -45,6 +46,8 @@ renamed at some point, so older references to `x-linux` (the distro) or to an
 | `equislinux/x-repo` | X binary package repository (hosted on GitHub Pages, `[x]` in `pacman.conf`) plus the package portal. |
 | `equislinux/xpm` | X package manager (Rust). |
 | `equislinux/xpkg` | X packaging tool for developers (Rust). |
+| `equislinux/wsl` / `equislinux/wsl-scripts` | WSL rootfs (published release `v0.1.0`) and its first-run setup. |
+| `equislinux/wiki` / `equislinux/web` | Documentation sources (en/es) and the documentation portal. |
 | `equisdots/*` | Org that owns the desktop stack (Hyprland Lua config, Quickshell shell, palettes, engines, SDDM login) consumed read-only by the Hyprland setup tool in `scripts`; its official installer is `equisdots/dots`. |
 
 Related documentation in this repository:

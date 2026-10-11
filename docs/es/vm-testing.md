@@ -6,8 +6,8 @@ Comandos auxiliares para ejecutar el ISO en vivo de X y arrancar un disco ya
 instalado con QEMU. Ajusta las rutas (`ISO`, `DISK`) a tu máquina.
 
 ```bash
-ISO=/home/x0z/Documents/repos/x-lnux/x/out/x-2026.09.06-x86_64.iso
-DISK=/home/x0z/x-vm.qcow2
+ISO="$HOME/Documents/repos/xlnux/x/out/x-<version>-x86_64.iso"
+DISK="$HOME/x-vm.qcow2"
 ```
 
 Ajusta `ISO` al artefacto producido por `xbuild.sh` (consulta
@@ -119,9 +119,9 @@ rm -rf "$SEED" && mkdir -p "$SEED"
 printf '{"disk":"/dev/vda","hostname":"x-vm","username":"x","password":"secret","profile":"core","bootloader":"grub","kernel":"linux","encryption":"no","hyprland":"no","kernel_params":"console=ttyS0"}\n' \
   > "$SEED/x-install.json"
 
-qemu-img create -f raw /home/x0z/cidata.img 64M
-mkfs.vfat -n cidata /home/x0z/cidata.img
-mcopy -i /home/x0z/cidata.img "$SEED/x-install.json" ::x-install.json
+qemu-img create -f raw "$SEED/cidata.img" 64M
+mkfs.vfat -n cidata "$SEED/cidata.img"
+mcopy -i "$SEED/cidata.img" "$SEED/x-install.json" ::x-install.json
 ```
 
 Después, añadí el disco semilla al comando de arranque del ISO y seleccioná
@@ -130,7 +130,7 @@ la entrada autoinstall (`xauto=1` ya es parte de su cmdline):
 ```bash
 qemu-system-x86_64 -enable-kvm -m 6144 -smp 4 -cpu host \
   -cdrom "$ISO" \
-  -drive file=/home/x0z/cidata.img,format=raw,if=virtio \
+  -drive file="$SEED/cidata.img",format=raw,if=virtio \
   -netdev user,id=net0 -device virtio-net-pci,netdev=net0 \
   -boot d
 ```
