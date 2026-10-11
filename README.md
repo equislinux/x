@@ -52,7 +52,8 @@
 <ul>
   <li><b>Development stage:</b> Active.</li>
   <li><b>Build model:</b> Local <code>mkarchiso</code> flow for ISO and dedicated scripts for WSL rootfs.</li>
-  <li><b>Automation:</b> Roadmap-to-issues synchronization is configured in GitHub Actions.</li>
+  <li><b>Validation:</b> Local suite (<code>scripts/test/validate.sh</code>) plus QEMU end-to-end runs; no GitHub Actions by design.</li>
+  <li><b>Releases:</b> Signed ISOs on SourceForge; stable download link at <a href="https://equislinux.github.io/web/download/latest/">equislinux.github.io/web/download/latest</a>.</li>
   <li><b>Focus areas:</b> Package repository maturity, installer UX, documentation, and release pipeline hardening.</li>
 </ul>
 
@@ -120,9 +121,9 @@
 <div id="x" align="center">
 <h2>X</h2>
 
-<a href="https://xscriptor.io">X Web</a>
- & 
- <a href="https://github.com/xscriptor">X Github Profile</a>
+<a href="https://equislinux.github.io/web/">Website &amp; Docs</a>
+ &middot;
+ <a href="https://github.com/equislinux">GitHub</a>
 
 </div>
 

@@ -1,6 +1,6 @@
 # Project State
 
-This document summarizes the current state of the X Linux project based on repository contents, scripts, and roadmap progress.
+This document summarizes the current state of the X Linux project based on repository contents, scripts, and roadmap progress (last reviewed 2026-10-10).
 
 ## Snapshot
 
@@ -23,8 +23,10 @@ This document summarizes the current state of the X Linux project based on repos
 
 - Calamares was removed; the live ISO no longer ships a graphical installer or the
   `x-calamares-config`/`x-live-session` packages.
-- Installation and provisioning are being reworked around scripts (see the reboot
-  roadmap in the workspace root).
+- Installation is a script-driven text installer (`airootfs/root/x-installer`):
+  BIOS/UEFI, GRUB/systemd-boot, LUKS, dualboot, core/full profiles, optional
+  Hyprland desktop and kernel selection (`linux`, `linux-lts`, `linux-zen`).
+  See `installation.md` and `en|es/installer.md`.
 - Post-install automation lives in `airootfs/root/x-postinstall.sh`.
 - **Generations**: the installer creates `@`/`@home`/`@snapshots`/`@xstate`
   btrfs subvolumes and a bootable first generation; the payload (`x-scripts`)
@@ -40,17 +42,26 @@ This document summarizes the current state of the X Linux project based on repos
 
 ### Project Operations
 
-- `ROADMAP.md` is integrated with GitHub Issues sync through `.github/workflows/roadmap-sync.yml`.
-- The sync script (`.github/scripts/sync_roadmap.py`) can create and synchronize issue states from roadmap checkboxes.
+- Releases are cut locally: `xbuild.sh` builds the ISO and
+  `x-repo/scripts/publish-iso.sh` signs and uploads it to SourceForge, refreshing
+  the web index (`releases.json`).
+- Validation runs locally: `scripts/test/validate.sh`, the btrfs suite and the
+  QEMU end-to-end harness (`tests/e2e-autoinstall.py`). No GitHub Actions by
+  design (owner decision).
+- Public documentation: <https://equislinux.github.io/web/> (sources in `equislinux/wiki`).
 
 ## In Progress or Pending Areas
 
-According to `ROADMAP.md`, notable pending areas include:
+Notable open areas (see also `ROADMAP.md` and `x-repo/docs/`):
 
-- Full package repository lifecycle completion.
-- Improved installation UX and first-boot experience.
-- Expanded user-facing documentation.
-- Automated release pipeline (build/sign/versioning strategy).
+- `xpm` hardening: two P1 bugs (gcc-libs dependency cycle in the resolver and
+  hardlink extraction for `zoneinfo` on real Arch packages).
+- WSL integrations with the full system (`x setup`/`x home`) — feasibility
+  research pending (parked by decision).
+- Crypto housekeeping: offline backup of the project key and a rotation plan
+  (`x-repo/docs/en|es/signing.md`).
+- CI stays local until the stack consolidates; UKI/Secure Boot parked (a
+  Microsoft-signed shim is the only zero-touch route for the ISO).
 
 ## Risks and Notes
 
