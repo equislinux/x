@@ -73,7 +73,7 @@ cae a prompts de texto plano en caso contrario (`ui.sh`).
 | Kernel | `linux (stable)` / `linux-lts (longterm)` / `linux-zen (desktop)` | `kernel` (`linux`/`linux-lts`/`linux-zen`; `linux-hardened`, `linux-rt`, `linux-rt-lts` aceptados vía JSON) |
 | Cifrado de raíz (LUKS) | sí/no | `encryption` (`yes`/`no`) |
 | Passphrase LUKS | reutilizar la del usuario o una dedicada | `luks_password` |
-| Instalar el setup de Hyprland | sí/no (requiere red) | `hyprland` (`yes`/`no`) |
+| Instalar el setup de Hyprland | sí/no + origen (snapshot incluido o último desde equisdots) | `hyprland` (`yes`/`online`/`no`); `hyprland_ref` opcional fija la ref de equisdots (solo online) |
 | Instalar los agentes IA de Xscriptor | sí/no (requiere red) | `agents` (`yes`/`no`) |
 
 Mapeo idioma a locale que usa el configurador:
@@ -164,15 +164,19 @@ están.
       `[x]` y después `x agent install --bundle x` corre como el usuario
       destino con `HOME=/home/<user>` (bundle de Xscriptor: agentes, skills y
       comandos para OpenCode).
-11. **Setup de Hyprland** (solo si `hyprland=yes`): se crea un drop-in
+11. **Setup de Hyprland** (si `hyprland=yes` u `online`): se crea un drop-in
     temporal de sudo sin password y se ejecuta
     `/usr/share/x/tools/hyprland-install.sh` como el usuario destino. El
-    drop-in se elimina después. La herramienta prefiere la instantánea offline
-    del stack equisdots incluida en el paquete
-    (`/usr/share/x/config/equisdots`); solo clona el instalador oficial
-    `equisdots/dots` como fallback online. NVIDIA lo gestiona la fase de
-    hardware del sistema; la herramienta recurre al setup NVIDIA de equisdots
-    únicamente si hay GPU y ningún driver instalado.
+    drop-in se elimina después.
+    - `hyprland=yes` despliega la instantánea offline de equisdots incluida en
+      el paquete (`/usr/share/x/config/equisdots`).
+    - `hyprland=online` ignora la instantánea: clona `equisdots/dots`
+      (opcionalmente fijado con `hyprland_ref`), ejecuta su `dots install`
+      oficial (repos, plugins y merge de settings) y descarga las configs de
+      apps desde `xscriptor-colors`; si falla, el instalador cae al snapshot.
+    NVIDIA lo gestiona la fase de hardware del sistema; la herramienta recurre
+    al setup NVIDIA de equisdots únicamente si hay GPU y ningún driver
+    instalado.
 12. **Initramfs (solo LUKS)**: sustituir `HOOKS` en `mkinitcpio.conf` para
     incluir el hook `encrypt` y reconstruir con `mkinitcpio -P`.
 13. **Branding**: `x-release-apply` (del paquete `x-release`) se ejecuta

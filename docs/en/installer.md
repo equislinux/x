@@ -72,7 +72,7 @@ to plain text prompts otherwise (`ui.sh`).
 | Kernel | `linux (stable)` / `linux-lts (longterm)` / `linux-zen (desktop)` | `kernel` (`linux`/`linux-lts`/`linux-zen`; `linux-hardened`, `linux-rt`, `linux-rt-lts` accepted via JSON) |
 | Root encryption (LUKS) | yes/no | `encryption` (`yes`/`no`) |
 | LUKS passphrase | reuse user password or dedicated | `luks_password` |
-| Install Hyprland setup | yes/no (requires network) | `hyprland` (`yes`/`no`) |
+| Install Hyprland setup | yes/no + source (bundled snapshot or latest from equisdots) | `hyprland` (`yes`/`online`/`no`); optional `hyprland_ref` pins the equisdots ref (online) |
 | Install Xscriptor AI agents | yes/no (requires network) | `agents` (`yes`/`no`) |
 
 Language-to-locale mapping used by the configurator:
@@ -157,14 +157,19 @@ are required; the remaining keys have sensible defaults when absent.
       `[x]`, then `x agent install --bundle x` runs as the target user with
       `HOME=/home/<user>` (Xscriptor bundle: agents, skills and commands for
       OpenCode).
-11. **Hyprland setup** (only if `hyprland=yes`): a temporary passwordless-sudo
-    drop-in is created, and
-    `/usr/share/x/tools/hyprland-install.sh` runs as the target user. The drop-in
-    is removed afterwards. The tool prefers the offline equisdots snapshot
-    shipped in the package (`/usr/share/x/config/equisdots`); it only clones
-    the official `equisdots/dots` installer as an online fallback. NVIDIA is
-    owned by the system hardware phase; the tool falls back to the upstream
-    equisdots NVIDIA setup only if a GPU is present without a driver.
+11. **Hyprland setup** (if `hyprland=yes` or `online`): a temporary
+    passwordless-sudo drop-in is created and
+    `/usr/share/x/tools/hyprland-install.sh` runs as the target user. The
+    drop-in is removed afterwards.
+    - `hyprland=yes` deploys the offline equisdots snapshot shipped in the
+      package (`/usr/share/x/config/equisdots`).
+    - `hyprland=online` ignores the snapshot: it clones `equisdots/dots`
+      (optionally pinned with `hyprland_ref`), runs its official `dots install`
+      (repos, plugins and the settings merge) and fetches the app configs
+      from `xscriptor-colors`; if it fails, the installer falls back to the
+      bundled snapshot.
+    NVIDIA is owned by the system hardware phase; the tool falls back to the
+    upstream equisdots NVIDIA setup only if a GPU is present without a driver.
 12. **Initramfs (LUKS only)**: replace `HOOKS` in `mkinitcpio.conf` to include
     the `encrypt` hook and rebuild with `mkinitcpio -P`.
 13. **Branding**: `x-release-apply` (from `x-release`) is run *before* the
