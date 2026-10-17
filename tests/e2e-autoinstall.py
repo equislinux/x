@@ -517,14 +517,32 @@ class E2E:
             self.console.send(f"{self.args.password}\n")
         self.console.expect(r"E2E_PKG _END", 300)
         self.console.send("sudo x gen list | tail -3; echo E2E_GENLIST\" \"_END\n")
-        _, seg = self.console.expect(r"E2E_GENLIST _END", 60)
-        if "0002" not in seg:
-            raise E2EError(f"the pacman hook did not record a new generation:\n{seg[-600:]}")
+        _, seg_list = self.console.expect(r"E2E_GENLIST _END", 60)
+        if "0002" not in seg_list:
+            raise E2EError(f"the pacman hook did not record a new generation:\n{seg_list[-600:]}")
         self.console.send("sudo find /.snapshots -name 'db.*' -print; echo E2E_LOCK\" \"_END\n")
         _, seg = self.console.expect(r"E2E_LOCK _END", 90)
         if re.search(r"/\.snapshots/\S*db\.lck", seg):
             raise E2EError(f"a generation froze pacman's db.lck:\n{seg[-600:]}")
         log("db.lck regression OK (hooks recorded a generation, no lock inside)")
+
+        # Newest-wins: the post-transaction generation must be the default and
+        # the next boot must actually land on it.
+        ids = re.findall(r"^(\d{4})\b", seg_list, re.M)
+        if not ids:
+            raise E2EError(f"could not read the generation list:\n{seg_list[-600:]}")
+        newest = max(ids)
+        seg = self.sudo_expect("x gen status", "E2E_DEF1", 90)
+        if not re.search(r"default:\s+" + newest, seg):
+            raise E2EError(f"the newest generation {newest} is not the default:\n{seg[-600:]}")
+        log(f"newest generation {newest} is the default; rebooting to prove it")
+        self.reboot_and_login()
+        seg = self.sudo_expect("x gen status", "E2E_DEF2", 90)
+        if not re.search(r"running:\s+" + newest, seg):
+            raise E2EError(f"the reboot did not land on generation {newest}:\n{seg[-600:]}")
+        if not re.search(r"default:\s+" + newest, seg):
+            raise E2EError(f"default after reboot is not {newest}:\n{seg[-600:]}")
+        log(f"newest-wins OK: running/default = {newest} after reboot")
 
         if self.args.multikernel:
             self.verify_multikernel()
