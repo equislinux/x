@@ -130,7 +130,17 @@ fi
 
 # Install Hyprland during setup (instead of first boot)?
 HYPR="no"
-confirm_yes "Install the Hyprland setup during installation (needs network)?" n && HYPR="yes"
+if confirm_yes "Install the Hyprland setup during installation (needs network)?" n; then
+    HYPR_SOURCE=""
+    select_one HYPR_SOURCE "Hyprland source" \
+        "Bundled snapshot (offline, pinned)" \
+        "Latest from equisdots (online, needs network)"
+    if [[ "$HYPR_SOURCE" == "Latest from equisdots (online, needs network)" ]]; then
+        HYPR="online"
+    else
+        HYPR="yes"
+    fi
+fi
 
 # Install the Xscriptor AI agents/skills bundle during setup?
 AGENTS="no"

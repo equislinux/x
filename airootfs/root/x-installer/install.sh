@@ -30,6 +30,8 @@ BOOT="$(jget bootloader)";            BOOT="${BOOT:-grub}"
 ENC="$(jget encryption)";             ENC="${ENC:-no}"
 LUKS_PASS="$(jget luks_password)"
 HYPR="$(jget hyprland)";              HYPR="${HYPR:-no}"
+HYPR_REF="$(jget hyprland_ref)"
+case "$HYPR" in yes|online) ;; *) HYPR="no" ;; esac
 AGENTS="$(jget agents)";              AGENTS="${AGENTS:-no}"
 MODE="$(jget mode)";                  MODE="${MODE:-wipe}"
 ESP_OVERRIDE="$(jget esp)"
@@ -321,15 +323,31 @@ arch-chroot "$MNT" runuser -u "$USER" -- env X_HYPRLAND=0 X_HW_AUTO=0 /usr/bin/x
 # Audio stack enabled for all users (pipewire/wireplumber) + network.
 arch-chroot "$MNT" systemctl --global enable pipewire pipewire-pulse wireplumber >/dev/null 2>&1 || true
 
-if [[ "$HYPR" == "yes" ]]; then
+if [[ "$HYPR" == "yes" || "$HYPR" == "online" ]]; then
     echo "== installing the Hyprland/equisdots desktop (as user, with temporary passwordless sudo)"
     cat > "$MNT/etc/sudoers.d/x-hypr-install" <<'EOF'
 %wheel ALL=(ALL) NOPASSWD: ALL
 EOF
     chmod 440 "$MNT/etc/sudoers.d/x-hypr-install"
     set +e
-    arch-chroot "$MNT" runuser -u "$USER" -- /usr/share/x/tools/hyprland-install.sh
-    echo "hyprland setup exited with $?"
+    if [[ "$HYPR" == "online" ]]; then
+        echo "== Hyprland source: latest from equisdots (online)"
+        # X_HYPR_ONLINE ignores the bundled snapshot; hyprland_ref (JSON) pins
+        # the equisdots ref. On failure fall back to the packaged snapshot.
+        HYPR_ENV="X_HYPR_ONLINE=1"
+        [[ -n "$HYPR_REF" ]] && HYPR_ENV="$HYPR_ENV X_HYPR_REF=$HYPR_REF"
+        arch-chroot "$MNT" runuser -u "$USER" -- env $HYPR_ENV /usr/share/x/tools/hyprland-install.sh
+        rc=$?
+        if [[ $rc -ne 0 ]]; then
+            echo "warning: online desktop setup failed (rc=$rc); falling back to the bundled snapshot"
+            arch-chroot "$MNT" runuser -u "$USER" -- /usr/share/x/tools/hyprland-install.sh
+            rc=$?
+        fi
+    else
+        arch-chroot "$MNT" runuser -u "$USER" -- /usr/share/x/tools/hyprland-install.sh
+        rc=$?
+    fi
+    echo "hyprland setup exited with $rc"
     set -e
     rm -f "$MNT/etc/sudoers.d/x-hypr-install"
 fi
