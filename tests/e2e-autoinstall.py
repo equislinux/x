@@ -570,6 +570,18 @@ class E2E:
         if len(all_ids) < 6:
             raise E2EError(f"expected at least 6 generations, got {all_ids}:\n{seg_list[-800:]}")
         newest = all_ids[-1]
+        seg = self.sudo_expect(
+            "find /boot/x/kernels -mindepth 1 -maxdepth 1 -type d -printf '%f\\n'",
+            "E2E_KERNELS",
+            60,
+        )
+        kernel_dirs = set(re.findall(r"(?:linux|default)-[0-9a-f]{16}", seg))
+        if len(kernel_dirs) != 1:
+            raise E2EError(
+                f"expected one shared kernel copy for {len(all_ids)} generations, "
+                f"got {sorted(kernel_dirs)}:\n{seg[-800:]}"
+            )
+        log(f"shared kernel copies OK: 1 copy for {len(all_ids)} generations")
         if self.args.bootloader == "grub":
             seg = self.sudo_expect("cat /boot/grub/custom.cfg", "E2E_MENU_CFG", 60)
             menu_count = len(re.findall(r'menuentry "X Linux \(gen ', seg))
