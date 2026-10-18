@@ -367,7 +367,7 @@ class E2E:
         assert self.console is not None and self.monitor is not None
         deadline = time.time() + 45
         while time.time() < deadline:
-            self.monitor.sendkey("a")
+            self.monitor.sendkey(self.args.boot_menu_key)
             self.console.pump(1.0)
             # OVMF also mirrors its own messages to the serial port, so only
             # kernel/initramfs output proves the entry actually booted (the
@@ -420,6 +420,23 @@ class E2E:
         _, seg = self.console.expect(re.escape(sentinel) + r" _END", timeout)
         return seg
 
+    def wait_shell(self, timeout: float = 60) -> None:
+        """Wait until the login shell runs commands, without assuming a prompt.
+
+        The created user now logs in with zsh; with starship/equisdots it may
+        use a custom prompt glyph, so polling for a sentinel is safer than
+        matching `$`, `#` or `%`.
+        """
+        assert self.console is not None
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            self.console.send('echo E2E_LOGIN" "_OK\n')
+            if self.console.expect_opt(r"E2E_LOGIN _OK", 5):
+                return
+        raise E2EExpectTimeout(
+            f"login shell did not respond after {timeout:.0f}s\n{self.console.tail()}"
+        )
+
     def reboot_and_login(self) -> None:
         """Reboot the guest and log back in on the serial console."""
         assert self.console is not None
@@ -433,9 +450,7 @@ class E2E:
         self.console.send(f"{self.args.user}\n")
         self.console.expect(r"[Pp]assword[^\n]*:", 60)
         self.console.send(f"{self.args.password}\n")
-        self.console.expect(r"[$#] ", 60)
-        self.console.send('echo E2E_LOGIN" "_OK\n')
-        self.console.expect(r"E2E_LOGIN _OK", 60)
+        self.wait_shell()
         log("re-login after reboot OK")
 
     def verify_payload(self) -> None:
@@ -445,6 +460,10 @@ class E2E:
         self.expect_ok("pacman -Qq xfetch-bin")
         self.expect_ok("pacman -Qq xtop-git")
         self.expect_ok("pacman -Qq x-scripts")
+        log("checking the created user's shell (zsh)")
+        self.expect_ok("pacman -Qq zsh")
+        self.expect_ok(f'getent passwd {user} | cut -d: -f7 | grep -qx /usr/bin/zsh')
+        self.expect_ok('grep -qx /usr/bin/zsh /etc/shells')
         self.expect_ok(f"pacman -Qq {self.args.kernel}")
         self.expect_ok(f"pacman -Qq {self.args.kernel}-headers")
         self.expect_ok(
@@ -484,10 +503,7 @@ class E2E:
         self.console.send(f"{self.args.user}\n")
         self.console.expect(r"[Pp]assword[^\n]*:", 60)
         self.console.send(f"{self.args.password}\n")
-        # Wait for the shell prompt: input sent during `login` is discarded.
-        self.console.expect(r"[$#] ", 60)
-        self.console.send('echo E2E_LOGIN" "_OK\n')
-        self.console.expect(r"E2E_LOGIN _OK", 60)
+        self.wait_shell()
         log("logged in on the serial console")
         self.verify_payload()
 
@@ -512,7 +528,7 @@ class E2E:
         # Regression: generations recorded by the pacman hooks must never
         # freeze /var/lib/pacman/db.lck (it exists during the transaction).
         log("checking that hooks do not freeze pacman's db.lck")
-        self.console.send("sudo pacman -S --noconfirm nano >/dev/null 2>&1; echo E2E_PKG\" \"_END\n")
+        self.console.send("sudo pacman -S --noconfirm tree >/dev/null 2>&1; echo E2E_PKG\" \"_END\n")
         if self.console.expect_opt(r"[Pp]assword[^\n]*:", 5):
             self.console.send(f"{self.args.password}\n")
         self.console.expect(r"E2E_PKG _END", 300)
@@ -543,6 +559,46 @@ class E2E:
         if not re.search(r"default:\s+" + newest, seg):
             raise E2EError(f"default after reboot is not {newest}:\n{seg[-600:]}")
         log(f"newest-wins OK: running/default = {newest} after reboot")
+
+        # Every generation must stay selectable in the boot menu (no silent
+        # retention to the last N) and the newest one must be the default.
+        log("checking that every generation has a boot entry")
+        for pkg in ("unzip", "zip", "htop", "ncdu", "bmon"):
+            self.sudo_expect(f"pacman -S --noconfirm {pkg}", f"E2E_PKG_{pkg}", 600)
+        seg_list = self.sudo_expect("x gen list", "E2E_GENLIST_ALL", 60)
+        all_ids = sorted(set(re.findall(r"^(\d{4})\b", seg_list, re.M)), key=int)
+        if len(all_ids) < 6:
+            raise E2EError(f"expected at least 6 generations, got {all_ids}:\n{seg_list[-800:]}")
+        newest = all_ids[-1]
+        if self.args.bootloader == "grub":
+            seg = self.sudo_expect("cat /boot/grub/custom.cfg", "E2E_MENU_CFG", 60)
+            menu_count = len(re.findall(r'menuentry "X Linux \(gen ', seg))
+            default_written = re.search(r"set default=x-gen-" + newest + r"\b", seg) is not None
+        else:
+            seg = self.sudo_expect("ls /boot/loader/entries", "E2E_MENU_CFG", 60)
+            menu_count = len(set(re.findall(r"x-gen-\d{4}(?:-\S+)?\.conf", seg)))
+            seg = self.sudo_expect("cat /boot/loader/loader.conf", "E2E_MENU_DEF", 60)
+            default_written = re.search(
+                r"default x-gen-" + newest + r"(?:-\S+)?\.conf", seg
+            ) is not None
+        if menu_count != len(all_ids):
+            raise E2EError(
+                f"boot menu has {menu_count} generation entries, expected {len(all_ids)} "
+                f"({all_ids}):\n{seg[-800:]}"
+            )
+        if not default_written:
+            raise E2EError(f"the boot menu default is not generation {newest}:\n{seg[-800:]}")
+        seg = self.sudo_expect("x gen status", "E2E_DEF_MENU", 60)
+        if not re.search(r"default:\s+" + newest, seg):
+            raise E2EError(f"newest generation {newest} is not the default:\n{seg[-800:]}")
+        log(f"boot menu OK: {menu_count} entries, newest {newest} is the default; rebooting")
+        self.reboot_and_login()
+        seg = self.sudo_expect("x gen status", "E2E_DEF_MENU_BOOT", 90)
+        if not re.search(r"running:\s+" + newest, seg):
+            raise E2EError(f"reboot landed on the wrong generation (expected {newest}):\n{seg[-800:]}")
+        if not re.search(r"default:\s+" + newest, seg):
+            raise E2EError(f"default after reboot is not {newest}:\n{seg[-800:]}")
+        log(f"all-generations boot menu OK: running/default = {newest}")
 
         if self.args.multikernel:
             self.verify_multikernel()
@@ -652,6 +708,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="live ISO (default: newest x/out/*.iso)",
     )
     ap.add_argument("--workdir", type=Path, default=WORKSPACE / "tmp" / "e2e")
+    ap.add_argument(
+        "--boot-menu-key",
+        default="a",
+        help="QEMU key sent to pick the autoinstall entry ('a' for the syslinux/GRUB hotkey, 'ret' for a systemd-boot default entry)",
+    )
     ap.add_argument("--profile", default="core", choices=("core", "full"))
     ap.add_argument("--bootloader", default="grub", choices=("grub", "systemd-boot"))
     ap.add_argument(

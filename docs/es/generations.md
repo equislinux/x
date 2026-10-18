@@ -69,7 +69,8 @@ gestor de arranque.
 - `btrfs-progs` en el destino (ya está en `packages.x86_64` y en la lista de
   paquetes del live).
 - Tamaño del ESP: 1G es el default en instalaciones nuevas (las instalaciones
-  viejas de 512M siguen funcionando; el motor poda las copias del ESP más allá
-  de `X_GEN_BOOT_KEEP`, default 3).
+  viejas de 512M siguen funcionando; por defecto cada generación tiene su
+  entry y `X_GEN_BOOT_KEEP` permite limitar el menú a las N más recientes si
+  el ESP es pequeño).
 - El payload registra generaciones solo si la raíz es btrfs; en otros setups
   cada hook es no-op y `x gen` reporta que no están disponibles.

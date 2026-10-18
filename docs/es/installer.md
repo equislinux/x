@@ -123,14 +123,14 @@ están.
 5. **Conjunto de paquetes**:
    - Conjunto base: `base base-devel linux linux-firmware sudo networkmanager
      openssh git jq x-release btrfs-progs xfetch-bin xtop-git kitty pipewire
-     pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm`, más
+     pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm zsh`, más
      `grub efibootmgr` para
      GRUB y `cryptsetup` para LUKS. `btrfs-progs` lo requiere el motor de
-     generaciones; las herramientas de X (`xfetch`, `xtop`) se instalan en
-     todos los perfiles.
+     generaciones; las herramientas de X (`xfetch`, `xtop`) y `zsh` se
+     instalan en todos los perfiles.
    - Perfil `full`: añade todos los paquetes del manifiesto apuntado por
      `X_PKGLIST` (por defecto `/root/x-installer/packages.x86_64`).
-   - Perfil `core`: añade solo `vim zsh`.
+   - Perfil `core`: añade solo `vim`.
    - El perfil `full` con el escritorio Hyprland compila paquetes de AUR
      (`quickshell-git`, `swayosd-git`, ...): dale al instalador **≥6 GB de
      RAM**; en máquinas con poca memoria limita los jobs de build.
@@ -151,7 +151,7 @@ están.
    `locale.gen` + `/etc/locale.conf`, `KEYMAP` en `/etc/vconsole.conf`,
    hostname, copia del mirrorlist funcional y anexado del repositorio `[x]` al
    `pacman.conf` del destino si no existe.
-9. **Usuario**: crear el usuario (miembro de `wheel`, shell de login `bash`),
+9. **Usuario**: crear el usuario (miembro de `wheel`, shell de login `zsh`),
    fijar la password con `chpasswd` y habilitar `%wheel` en `sudoers`.
 10. **Aprovisionamiento** con la CLI `x` del paquete `x-scripts`:
     - fases de sistema como root: `X_HW_AUTO=0 x setup`;

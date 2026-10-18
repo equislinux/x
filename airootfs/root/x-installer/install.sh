@@ -206,12 +206,14 @@ mount "$EFI" "$MNT/boot"
 # Package set per profile.
 EXTRA="base base-devel $KERNEL $KERNEL-headers linux-firmware sudo networkmanager openssh git jq x-release btrfs-progs xfetch-bin xtop-git"
 # Terminal and audio stack are always installed (work without the Hyprland setup).
-EXTRA="$EXTRA kitty pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm"
+# zsh is part of the base set (not only the core profile): every created user
+# gets it as the login shell.
+EXTRA="$EXTRA kitty pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm zsh"
 [[ "$BOOT" == "grub" ]] && EXTRA="$EXTRA grub efibootmgr"
 [[ "$MODE" == "dualboot" && "$BOOT" == "grub" ]] && EXTRA="$EXTRA os-prober"
 [[ "$ENC" == "yes" ]] && EXTRA="$EXTRA cryptsetup"
 if [[ "$PROFILE" == "core" ]]; then
-    PKGS="$EXTRA vim zsh"
+    PKGS="$EXTRA vim"
 else
     PKGS="$EXTRA"
     if [[ -f "$PKGLIST" ]]; then
@@ -312,7 +314,10 @@ EOF
 fi
 
 echo "== user"
-arch-chroot "$MNT" useradd -m -G wheel -s /bin/bash "$USER"
+arch-chroot "$MNT" useradd -m -G wheel -s /usr/bin/zsh "$USER"
+# The zsh package owns /usr/bin/zsh and registers it in /etc/shells. Fail
+# loudly if the base set ever drops it instead of leaving a broken login shell.
+arch-chroot "$MNT" bash -c 'command -v zsh >/dev/null && grep -qx /usr/bin/zsh /etc/shells'
 printf '%s:%s\n' "$USER" "$PASS" | arch-chroot "$MNT" chpasswd
 arch-chroot "$MNT" sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 

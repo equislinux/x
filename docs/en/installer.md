@@ -117,13 +117,13 @@ are required; the remaining keys have sensible defaults when absent.
 5. **Package set**:
    - Base set: `base base-devel linux linux-firmware sudo networkmanager
      openssh git jq x-release btrfs-progs xfetch-bin xtop-git kitty pipewire
-     pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm`, plus
+     pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm zsh`, plus
      `grub efibootmgr` for GRUB and `cryptsetup` for LUKS. `btrfs-progs` is
-     required by the generations engine; the X tools (`xfetch`, `xtop`) are
-     installed in every profile.
+     required by the generations engine; the X tools (`xfetch`, `xtop`) and
+     `zsh` are installed in every profile.
    - `full` profile: adds every package in the manifest pointed to by
      `X_PKGLIST` (default `/root/x-installer/packages.x86_64`).
-   - `core` profile: adds only `vim zsh`.
+   - `core` profile: adds only `vim`.
    - The `full` profile with the Hyprland desktop compiles AUR packages
      (`quickshell-git`, `swayosd-git`, ...): give the installer **≥6 GB RAM**;
      on low-RAM machines it limits the build jobs automatically.
@@ -144,7 +144,7 @@ are required; the remaining keys have sensible defaults when absent.
    `/etc/locale.conf`, `KEYMAP` in `/etc/vconsole.conf`, hostname, copy of the
    working mirrorlist, and the `[x]` repository appended to the target's
    `pacman.conf` if missing.
-9. **User**: create the user (member of `wheel`, login shell `bash`), set the
+9. **User**: create the user (member of `wheel`, login shell `zsh`), set the
    password with `chpasswd`, and enable `%wheel` in `sudoers`.
 10. **Provisioning** with the `x` CLI from the `x-scripts` package:
     - system phases as root: `X_HW_AUTO=0 x setup`;

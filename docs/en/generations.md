@@ -64,7 +64,8 @@ created once, by the installer, after branding and bootloader are in place.
 - `btrfs-progs` in the target (already in `packages.x86_64` and the live
   package list).
 - ESP size: 1G is the default in new installs (older 512M installs still work;
-  the engine prunes ESP copies beyond `X_GEN_BOOT_KEEP`, default 3).
+  every generation gets an entry by default, and `X_GEN_BOOT_KEEP` can cap the
+  menu to the newest N if the ESP is small).
 - The payload records generations only when the root filesystem is btrfs; on
   other setups every generation hook is a no-op and `x gen` reports that
   generations are unavailable.
