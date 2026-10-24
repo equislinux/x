@@ -29,6 +29,8 @@ graphical installer; Calamares was removed).
 - `X_SKIP_INSTALLER=1`: do not launch the installer at boot.
 - `X_PKGLIST`: alternative package manifest (default
   `/root/x-installer/packages.x86_64`, used by the `full` profile).
+- `"desktop":"hyprland"|"niri"|"kde"|"none"` selects the desktop installed
+  online during the text install. `hyprland` is the legacy JSON key.
 - `"virtualization":"yes"` in the JSON installs QEMU/KVM + libvirt +
   `virt-manager`, adds the user to `kvm`/`libvirt`, enables `libvirtd.socket`
   and autostarts the `default` NAT network. The GUI needs a desktop; `virsh`

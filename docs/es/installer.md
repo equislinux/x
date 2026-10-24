@@ -73,7 +73,7 @@ cae a prompts de texto plano en caso contrario (`ui.sh`).
 | Kernel | `linux (stable)` / `linux-lts (longterm)` / `linux-zen (desktop)` | `kernel` (`linux`/`linux-lts`/`linux-zen`; `linux-hardened`, `linux-rt`, `linux-rt-lts` aceptados vía JSON) |
 | Cifrado de raíz (LUKS) | sí/no | `encryption` (`yes`/`no`) |
 | Passphrase LUKS | reutilizar la del usuario o una dedicada | `luks_password` |
-| Instalar el setup de Hyprland | sí/no + origen (snapshot incluido o último desde equisdots) | `hyprland` (`yes`/`online`/`no`); `hyprland_ref` opcional fija la ref de equisdots (solo online) |
+| Entorno de escritorio | Hyprland (online) / Niri (online) / KDE Plasma (online) / Ninguno | `desktop` (`hyprland`/`niri`/`kde`/`none`); `hyprland` (`yes`/`online`/`no`) es la clave legacy |
 | Instalar los agentes IA de Xscriptor | sí/no (requiere red) | `agents` (`yes`/`no`) |
 | Instalar virtualización | sí/no (QEMU/KVM + libvirt + GUI virt-manager) | `virtualization` (`yes`/`no`) |
 
@@ -96,7 +96,7 @@ final de que todo lo que haya en el disco seleccionado será borrado. El JSON
 resultante tiene este aspecto:
 
 ```json
-{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","encryption":"no","luks_password":"","hyprland":"no","agents":"no","virtualization":"no"}
+{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","encryption":"no","luks_password":"","hyprland":"no","desktop":"none","agents":"no","virtualization":"no"}
 ```
 
 El JSON se escribe en la ruta de `X_CONFIG_OUT` (por defecto
@@ -203,6 +203,33 @@ están.
 
 Un mensaje indica que la instalación ha terminado; reinicia y retira el medio
 de instalación.
+
+## Entornos de escritorio
+
+El configurador ofrece cuatro opciones, todas instaladas **online** durante la
+instalación:
+
+| `desktop` | Qué se instala |
+|---|---|
+| `hyprland` | El stack oficial equisdots Hyprland vía `equisdots/dots` (`dots install`, último `main`), más la integración de paquetes/login de X. |
+| `niri` | El stack oficial equisdots niri vía `equisdots/niri-meta` (`dotsniri setup -y`): niri, shell Quickshell, overlays de niri, plugins, configs de apps y la entrada de sesión niri. |
+| `kde` | `plasma-meta` + el grupo `kde-applications` de los repos oficiales y el paquete de branding `x-kde-settings` de `[x]` (colores X Dark, look-and-feel, wallpaper y tema SDDM). |
+| `none` | Sin escritorio; solo consola. |
+
+Comportamiento común:
+
+- SDDM es el gestor de sesiones. Hyprland/niri usan el tema SDDM estático de
+  equisdots; KDE usa el mismo tema X de `x-kde-settings`.
+- El escritorio se instala durante la instalación de texto (requiere red), no
+  en el primer arranque. Primero corre el aprovisionamiento de usuario
+  (`x setup --user`); después el tool del escritorio despliega el payload.
+- El branding X se aplica en todas las superficies visibles (`os-release`,
+  GRUB, SDDM, wallpaper, colores de Plasma). `ID_LIKE=arch` sigue siendo un
+  identificador técnico.
+- `hyprland` se mantiene en el JSON por compatibilidad con seeds de
+  autoinstalación antiguos; si `desktop` está presente, manda `desktop`.
+- El `hyprland=yes` legacy (snapshot offline incluido) sigue funcionando cuando
+  no hay `desktop`; los seeds nuevos deben usar `desktop`.
 
 ## Virtualización (opcional)
 

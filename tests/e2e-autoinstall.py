@@ -251,7 +251,8 @@ class E2E:
         )
         seed_json = self.workdir / "x-install.json"
         luks = f',"luks_password":"{self.args.password}"' if self.args.encryption == "yes" else ""
-        hypr = "yes" if self.args.hyprland else "no"
+        desktop = self.args.desktop
+        hypr = "online" if desktop == "hyprland" else "no"
         agents = "yes" if self.args.agents else "no"
         virt = "yes" if self.args.virt else "no"
         seed_json.write_text(
@@ -261,7 +262,7 @@ class E2E:
             f'"profile":"{self.args.profile}","bootloader":"{self.args.bootloader}",'
             f'"kernel":"{self.args.kernel}",'
             f'"encryption":"{self.args.encryption}","hyprland":"{hypr}",'
-            f'"agents":"{agents}","virtualization":"{virt}"{luks},'
+            f'"desktop":"{desktop}","agents":"{agents}","virtualization":"{virt}"{luks},'
             '"kernel_params":"console=ttyS0"'
             "}\n"
         )
@@ -476,7 +477,7 @@ class E2E:
         self.expect_ok("xfetch --gen-config")
         self.expect_ok(f"test -f /home/{user}/.config/xfetch/config.jsonc")
         self.expect_ok("xtop --help 2>&1 | grep -qi plugin")
-        if self.args.profile == "full" and self.args.hyprland:
+        if self.args.profile == "full" and self.args.desktop == "hyprland":
             log("checking desktop payload (zsh + kitty shaders)")
             self.expect_ok(f"test -f /home/{user}/.config/kitty/shaders/x-trail.pipeline")
             self.expect_ok(f"grep -q '^custom_shaders' /home/{user}/.config/kitty/kitty.conf")
@@ -490,6 +491,34 @@ class E2E:
             self.expect_ok(f"test -d /home/{user}/.config/opencode/agents")
             self.expect_ok(f"test -d /home/{user}/.config/opencode/skills")
             self.expect_ok(f"test -d /home/{user}/.local/state/x/agents")
+        if self.args.desktop == "hyprland":
+            log("checking Hyprland/equisdots payload")
+            self.expect_ok("pacman -Qq hyprland")
+            self.expect_ok("command -v Hyprland")
+            self.expect_ok(f"test -f /home/{user}/.config/hypr/hyprland.lua")
+            self.expect_ok(f"test -f /home/{user}/.config/hypr/settings.json")
+            self.expect_ok(f"test -d /home/{user}/.config/hypr/scripts/quickshell")
+            self.expect_ok(f"test -x /home/{user}/.local/bin/dots")
+        if self.args.desktop == "niri":
+            log("checking niri/equisdots payload")
+            self.expect_ok("pacman -Qq niri")
+            self.expect_ok("command -v niri")
+            self.expect_ok(f"test -f /home/{user}/.config/niri/config.kdl")
+            self.expect_ok(f"niri validate -c /home/{user}/.config/niri/config.kdl")
+            self.expect_ok(f"test -f /home/{user}/.local/bin/dotsniri")
+            self.expect_ok("test -f /etc/pam.d/quickshell")
+            self.expect_ok("test -f /usr/share/sddm/themes/x/Main.qml")
+        if self.args.desktop == "kde":
+            log("checking KDE Plasma payload and X branding")
+            self.expect_ok("pacman -Qq plasma-meta")
+            self.expect_ok("pacman -Qq x-kde-settings")
+            self.expect_ok("test -f /usr/share/plasma/look-and-feel/org.x.desktop/metadata.json")
+            self.expect_ok("grep -q 'LookAndFeelPackage=org.x.desktop' /etc/xdg/kdeglobals")
+            self.expect_ok("test -f /usr/share/color-schemes/XDark.colors")
+            self.expect_ok("test -f /usr/share/sddm/themes/x/Main.qml")
+            self.expect_ok("systemctl is-enabled sddm.service")
+            self.expect_ok("test -f /usr/share/wayland-sessions/plasma.desktop")
+        self.expect_ok("grep -q '^PRETTY_NAME=\"X Linux\"' /etc/os-release")
         if self.args.virt:
             log("checking virtualization stack (QEMU/KVM + libvirt + virt-manager)")
             self.expect_ok("pacman -Qq qemu-desktop")
@@ -753,9 +782,15 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     ap.add_argument("--encryption", default="no", choices=("no", "yes"))
     ap.add_argument(
+        "--desktop",
+        default="none",
+        choices=("none", "hyprland", "niri", "kde"),
+        help="desktop to install (JSON desktop=...); default none",
+    )
+    ap.add_argument(
         "--hyprland",
         action="store_true",
-        help="install the Hyprland/equisdots desktop (JSON hyprland=yes)",
+        help="legacy alias for --desktop hyprland (online)",
     )
     ap.add_argument(
         "--agents",
@@ -782,6 +817,8 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="reuse the installed disk of --workdir (skip phase 1)",
     )
     args = ap.parse_args(argv)
+    if args.hyprland and args.desktop == "none":
+        args.desktop = "hyprland"
     if args.iso is None:
         ap.error("no ISO in x/out; pass --iso")
     args.iso = args.iso.resolve()

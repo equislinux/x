@@ -32,6 +32,15 @@ LUKS_PASS="$(jget luks_password)"
 HYPR="$(jget hyprland)";              HYPR="${HYPR:-no}"
 HYPR_REF="$(jget hyprland_ref)"
 case "$HYPR" in yes|online) ;; *) HYPR="no" ;; esac
+DESKTOP="$(jget desktop)"
+if [[ -z "$DESKTOP" ]]; then
+    case "$HYPR" in yes|online) DESKTOP="hyprland" ;; *) DESKTOP="none" ;; esac
+elif [[ "$DESKTOP" == "hyprland" ]]; then
+    # New selector: Hyprland is always full online.
+    HYPR="online"
+fi
+case "$DESKTOP" in hyprland|niri|kde|none) ;; *) echo "installer: invalid desktop '$DESKTOP' (hyprland|niri|kde|none)" >&2; exit 1 ;; esac
+[[ "$DESKTOP" == "hyprland" ]] || HYPR="no"
 AGENTS="$(jget agents)";              AGENTS="${AGENTS:-no}"
 VIRT="$(jget virtualization)";        VIRT="${VIRT:-no}"
 case "$VIRT" in yes|no) ;; *) VIRT="no" ;; esac
@@ -69,7 +78,7 @@ if [[ "$DRY" == "1" ]]; then
     echo "  profile:   $PROFILE"
     echo "  kernel:    $KERNEL"
     echo "  bootloader:$BOOT"
-    echo "  encryption:$ENC   hyprland:$HYPR   agents:$AGENTS   virtualization:$VIRT"
+    echo "  encryption:$ENC   desktop:$DESKTOP   agents:$AGENTS   virtualization:$VIRT"
     echo "  extra kernel params: ${KERNEL_PARAMS:-none}"
     exit 0
 fi
@@ -210,13 +219,18 @@ EXTRA="base base-devel $KERNEL $KERNEL-headers linux-firmware sudo networkmanage
 # Terminal and audio stack are always installed (work without the Hyprland setup).
 # zsh is part of the base set (not only the core profile): every created user
 # gets it as the login shell.
-EXTRA="$EXTRA kitty pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm zsh"
+EXTRA="$EXTRA kitty pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm zsh rsync curl python"
 [[ "$BOOT" == "grub" ]] && EXTRA="$EXTRA grub efibootmgr"
 [[ "$MODE" == "dualboot" && "$BOOT" == "grub" ]] && EXTRA="$EXTRA os-prober"
 [[ "$ENC" == "yes" ]] && EXTRA="$EXTRA cryptsetup"
 # Optional virtualization stack: QEMU/KVM, libvirt, GUI and UEFI/TPM guests.
 if [[ "$VIRT" == "yes" ]]; then
     EXTRA="$EXTRA qemu-desktop qemu-img qemu-system-aarch64 libvirt virt-manager virt-install libosinfo virt-viewer dnsmasq iptables edk2-ovmf edk2-aarch64 swtpm dmidecode"
+fi
+# KDE Plasma is installed online from the official repositories; the X
+# branding layer (x-kde-settings) comes from the signed [x] repository.
+if [[ "$DESKTOP" == "kde" ]]; then
+    EXTRA="$EXTRA plasma-meta kde-applications"
 fi
 if [[ "$PROFILE" == "core" ]]; then
     PKGS="$EXTRA vim"
@@ -292,6 +306,20 @@ else
     echo "warning: x-scripts package not found in the live" >&2
 fi
 
+# KDE branding is bundled in the live payload so the online Plasma install gets
+# a complete X layer even before x-kde-settings is published as a new package.
+if [[ "$DESKTOP" == "kde" ]]; then
+    XKDE_PKG="$(ls /root/x-installer/packages/x-kde-settings-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
+    if [[ -n "$XKDE_PKG" ]]; then
+        echo "== installing x-kde-settings (bundled)"
+        cp -f "$XKDE_PKG" "$MNT/root/"
+        arch-chroot "$MNT" pacman -U --noconfirm "/root/$(basename "$XKDE_PKG")" >/dev/null
+        rm -f "$MNT/root/$(basename "$XKDE_PKG")"
+    else
+        echo "warning: x-kde-settings not found in the live; KDE will use stock Plasma branding" >&2
+    fi
+fi
+
 echo "== base configuration"
 genfstab -U "$MNT" >> "$MNT/etc/fstab"
 # Volatile /tmp as tmpfs: keeps generation snapshots free of transient files.
@@ -355,7 +383,7 @@ if [[ "$VIRT" == "yes" ]]; then
     fi
 fi
 
-if [[ "$HYPR" == "yes" || "$HYPR" == "online" ]]; then
+if [[ "$DESKTOP" == "hyprland" ]]; then
     echo "== installing the Hyprland/equisdots desktop (as user, with temporary passwordless sudo)"
     cat > "$MNT/etc/sudoers.d/x-hypr-install" <<'EOF'
 %wheel ALL=(ALL) NOPASSWD: ALL
@@ -382,6 +410,27 @@ EOF
     echo "hyprland setup exited with $rc"
     set -e
     rm -f "$MNT/etc/sudoers.d/x-hypr-install"
+fi
+
+if [[ "$DESKTOP" == "niri" ]]; then
+    echo "== installing the niri/equisdots desktop (as user, with temporary passwordless sudo)"
+    cat > "$MNT/etc/sudoers.d/x-niri-install" <<'EOF'
+%wheel ALL=(ALL) NOPASSWD: ALL
+EOF
+    chmod 440 "$MNT/etc/sudoers.d/x-niri-install"
+    set +e
+    arch-chroot "$MNT" runuser -u "$USER" -- /usr/share/x/tools/niri-install.sh
+    rc=$?
+    echo "niri setup exited with $rc"
+    set -e
+    rm -f "$MNT/etc/sudoers.d/x-niri-install"
+fi
+
+if [[ "$DESKTOP" == "kde" ]]; then
+    # x-kde-settings ships the X look-and-feel + /etc/skel config; the Plasma
+    # autostart applies the global theme on the first graphical login.
+    arch-chroot "$MNT" systemctl disable plasmalogin.service >/dev/null 2>&1 || true
+    arch-chroot "$MNT" systemctl enable sddm.service >/dev/null 2>&1 || true
 fi
 
 if [[ "$AGENTS" == "yes" ]]; then
