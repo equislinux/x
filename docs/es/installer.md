@@ -75,6 +75,7 @@ cae a prompts de texto plano en caso contrario (`ui.sh`).
 | Passphrase LUKS | reutilizar la del usuario o una dedicada | `luks_password` |
 | Instalar el setup de Hyprland | sí/no + origen (snapshot incluido o último desde equisdots) | `hyprland` (`yes`/`online`/`no`); `hyprland_ref` opcional fija la ref de equisdots (solo online) |
 | Instalar los agentes IA de Xscriptor | sí/no (requiere red) | `agents` (`yes`/`no`) |
+| Instalar virtualización | sí/no (QEMU/KVM + libvirt + GUI virt-manager) | `virtualization` (`yes`/`no`) |
 
 Mapeo idioma a locale que usa el configurador:
 
@@ -95,7 +96,7 @@ final de que todo lo que haya en el disco seleccionado será borrado. El JSON
 resultante tiene este aspecto:
 
 ```json
-{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","encryption":"no","luks_password":"","hyprland":"no","agents":"no"}
+{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","encryption":"no","luks_password":"","hyprland":"no","agents":"no","virtualization":"no"}
 ```
 
 El JSON se escribe en la ruta de `X_CONFIG_OUT` (por defecto
@@ -202,6 +203,33 @@ están.
 
 Un mensaje indica que la instalación ha terminado; reinicia y retira el medio
 de instalación.
+
+## Virtualización (opcional)
+
+El configurador puede instalar un stack de virtualización listo para usar en el
+destino (`"virtualization":"yes"`). Se instala con `pacman` durante la
+instalación, así que necesita red como el resto de paquetes del destino.
+
+- Paquetes: `qemu-desktop`, `qemu-img`, `qemu-system-aarch64`, `libvirt`,
+  `virt-manager`, `virt-install`, `libosinfo`, `virt-viewer`, `dnsmasq`,
+  `iptables`, `edk2-ovmf`, `edk2-aarch64`, `swtpm`, `dmidecode`.
+- Acceso: el usuario creado se añade a los grupos `libvirt` y `kvm`
+  (`groupadd -f` + `usermod -aG`), para que `virt-manager` use la conexión de
+  sistema y `/dev/kvm`.
+- Servicios: se habilitan `libvirtd.socket` y `virtlogd.socket` (activación por
+  socket).
+- Red: la red NAT `default` de libvirt (`virbr0`) queda marcada para
+  autostart y arranca con libvirtd. Usa `dnsmasq` y la interfaz nft de
+  `iptables`.
+- Invitados: `virt-manager` / `virt-install` / `virsh`; UEFI con `edk2-ovmf`,
+  TPM con `swtpm`; invitados ARM con `qemu-system-aarch64` + `edk2-aarch64`.
+- Aviso GUI: `virt-manager` necesita sesión gráfica. Con el perfil `core` y
+  sin escritorio no arrancará; `virsh`/`virt-install` siguen disponibles por
+  CLI.
+- Aviso VM anidada: si no hay `/dev/kvm` (X dentro de una VM sin virtualización
+  anidada), el stack se instala pero los invitados van sin aceleración KVM; el
+  instalador avisa.
+- El stack es opcional: sin `"virtualization":"yes"` el destino no cambia.
 
 ## Autoinstalación
 

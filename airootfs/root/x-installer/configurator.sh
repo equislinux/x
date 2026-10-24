@@ -146,9 +146,14 @@ fi
 AGENTS="no"
 confirm_yes "Install the Xscriptor AI agents/skills bundle (needs network)?" n && AGENTS="yes"
 
+# Optional virtualization stack (QEMU/KVM + libvirt + virt-manager GUI).
+# The GUI needs a graphical desktop; the CLI (virsh/virt-install) works without it.
+VIRT="no"
+confirm_yes "Install the virtualization stack (QEMU/KVM + libvirt + virt-manager GUI)?" n && VIRT="yes"
+
 if [[ "$DRY" == "1" ]]; then
-    printf '{"disk":"%s","mode":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","kernel":"%s","encryption":"%s","hyprland":"%s","agents":"%s"}\n' \
-        "$DISK" "$MODE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$KERNEL" "$ENC" "$HYPR" "$AGENTS"
+    printf '{"disk":"%s","mode":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","kernel":"%s","encryption":"%s","hyprland":"%s","agents":"%s","virtualization":"%s"}\n' \
+        "$DISK" "$MODE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$KERNEL" "$ENC" "$HYPR" "$AGENTS" "$VIRT"
     exit 0
 fi
 
@@ -165,7 +170,7 @@ else
 fi
 
 cat > "$OUT" <<EOF
-{"disk":"$DISK","mode":"$MODE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","bootloader":"$BOOT","kernel":"$KERNEL","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","agents":"$AGENTS"}
+{"disk":"$DISK","mode":"$MODE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","bootloader":"$BOOT","kernel":"$KERNEL","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","agents":"$AGENTS","virtualization":"$VIRT"}
 EOF
 chmod 600 "$OUT"
 echo "configuration written to $OUT"

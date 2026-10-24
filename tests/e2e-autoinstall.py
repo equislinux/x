@@ -253,6 +253,7 @@ class E2E:
         luks = f',"luks_password":"{self.args.password}"' if self.args.encryption == "yes" else ""
         hypr = "yes" if self.args.hyprland else "no"
         agents = "yes" if self.args.agents else "no"
+        virt = "yes" if self.args.virt else "no"
         seed_json.write_text(
             "{"
             f'"disk":"/dev/vda","hostname":"{self.args.hostname}",'
@@ -260,7 +261,7 @@ class E2E:
             f'"profile":"{self.args.profile}","bootloader":"{self.args.bootloader}",'
             f'"kernel":"{self.args.kernel}",'
             f'"encryption":"{self.args.encryption}","hyprland":"{hypr}",'
-            f'"agents":"{agents}"{luks},'
+            f'"agents":"{agents}","virtualization":"{virt}"{luks},'
             '"kernel_params":"console=ttyS0"'
             "}\n"
         )
@@ -489,6 +490,18 @@ class E2E:
             self.expect_ok(f"test -d /home/{user}/.config/opencode/agents")
             self.expect_ok(f"test -d /home/{user}/.config/opencode/skills")
             self.expect_ok(f"test -d /home/{user}/.local/state/x/agents")
+        if self.args.virt:
+            log("checking virtualization stack (QEMU/KVM + libvirt + virt-manager)")
+            self.expect_ok("pacman -Qq qemu-desktop")
+            self.expect_ok("pacman -Qq qemu-img")
+            self.expect_ok("pacman -Qq libvirt")
+            self.expect_ok("pacman -Qq virt-manager")
+            self.expect_ok("command -v virt-manager")
+            self.expect_ok(f"id -nG {user} | grep -qw libvirt")
+            self.expect_ok(f"id -nG {user} | grep -qw kvm")
+            self.expect_ok("systemctl is-enabled libvirtd.socket")
+            self.expect_ok("test -L /etc/libvirt/qemu/networks/autostart/default.xml")
+            self.expect_ok("virsh -c qemu:///system net-info default | grep -q 'Active:.*yes'")
 
     def phase_verify(self) -> None:
         log("phase 2/2: boot the installed disk and verify the generation")
@@ -748,6 +761,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--agents",
         action="store_true",
         help="install opencode-bin + the Xscriptor AI bundle (JSON agents=yes)",
+    )
+    ap.add_argument(
+        "--virt",
+        action="store_true",
+        help="install QEMU/KVM + libvirt + virt-manager and verify the stack (JSON virtualization=yes)",
     )
     ap.add_argument("--hostname", default="x-vm")
     ap.add_argument("--user", default="x")

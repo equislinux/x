@@ -33,6 +33,8 @@ HYPR="$(jget hyprland)";              HYPR="${HYPR:-no}"
 HYPR_REF="$(jget hyprland_ref)"
 case "$HYPR" in yes|online) ;; *) HYPR="no" ;; esac
 AGENTS="$(jget agents)";              AGENTS="${AGENTS:-no}"
+VIRT="$(jget virtualization)";        VIRT="${VIRT:-no}"
+case "$VIRT" in yes|no) ;; *) VIRT="no" ;; esac
 MODE="$(jget mode)";                  MODE="${MODE:-wipe}"
 ESP_OVERRIDE="$(jget esp)"
 MIN_SIZE="$(jget min_size)";          MIN_SIZE="${MIN_SIZE:-20}"
@@ -67,7 +69,7 @@ if [[ "$DRY" == "1" ]]; then
     echo "  profile:   $PROFILE"
     echo "  kernel:    $KERNEL"
     echo "  bootloader:$BOOT"
-    echo "  encryption:$ENC   hyprland:$HYPR   agents:$AGENTS"
+    echo "  encryption:$ENC   hyprland:$HYPR   agents:$AGENTS   virtualization:$VIRT"
     echo "  extra kernel params: ${KERNEL_PARAMS:-none}"
     exit 0
 fi
@@ -212,6 +214,10 @@ EXTRA="$EXTRA kitty pipewire pipewire-pulse pipewire-alsa wireplumber alsa-utils
 [[ "$BOOT" == "grub" ]] && EXTRA="$EXTRA grub efibootmgr"
 [[ "$MODE" == "dualboot" && "$BOOT" == "grub" ]] && EXTRA="$EXTRA os-prober"
 [[ "$ENC" == "yes" ]] && EXTRA="$EXTRA cryptsetup"
+# Optional virtualization stack: QEMU/KVM, libvirt, GUI and UEFI/TPM guests.
+if [[ "$VIRT" == "yes" ]]; then
+    EXTRA="$EXTRA qemu-desktop qemu-img qemu-system-aarch64 libvirt virt-manager virt-install libosinfo virt-viewer dnsmasq iptables edk2-ovmf edk2-aarch64 swtpm dmidecode"
+fi
 if [[ "$PROFILE" == "core" ]]; then
     PKGS="$EXTRA vim"
 else
@@ -320,6 +326,12 @@ arch-chroot "$MNT" useradd -m -G wheel -s /usr/bin/zsh "$USER"
 arch-chroot "$MNT" bash -c 'command -v zsh >/dev/null && grep -qx /usr/bin/zsh /etc/shells'
 printf '%s:%s\n' "$USER" "$PASS" | arch-chroot "$MNT" chpasswd
 arch-chroot "$MNT" sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
+if [[ "$VIRT" == "yes" ]]; then
+    # libvirt (system connection) and kvm (/dev/kvm) access for the user.
+    arch-chroot "$MNT" groupadd -f kvm
+    arch-chroot "$MNT" groupadd -f libvirt
+    arch-chroot "$MNT" usermod -aG kvm,libvirt "$USER"
+fi
 
 echo "== provisioning (x-scripts)"
 arch-chroot "$MNT" env X_HW_AUTO=0 X_GEN_SKIP=1 x setup
@@ -327,6 +339,21 @@ arch-chroot "$MNT" runuser -u "$USER" -- env X_HYPRLAND=0 X_HW_AUTO=0 /usr/bin/x
 
 # Audio stack enabled for all users (pipewire/wireplumber) + network.
 arch-chroot "$MNT" systemctl --global enable pipewire pipewire-pulse wireplumber >/dev/null 2>&1 || true
+
+if [[ "$VIRT" == "yes" ]]; then
+    echo "== virtualization (QEMU/KVM + libvirt + virt-manager)"
+    arch-chroot "$MNT" systemctl enable libvirtd.socket virtlogd.socket >/dev/null 2>&1 || true
+    install -d -m 0755 "$MNT/etc/libvirt/qemu/networks/autostart"
+    if [[ -f "$MNT/etc/libvirt/qemu/networks/default.xml" ]]; then
+        ln -sfn ../default.xml "$MNT/etc/libvirt/qemu/networks/autostart/default.xml"
+    fi
+    if [[ ! -e /dev/kvm ]]; then
+        echo "warning: /dev/kvm is not available here; guests will run without KVM acceleration"
+    fi
+    if [[ "$PROFILE" == "core" && "$HYPR" == "no" ]]; then
+        echo "note: virt-manager needs a graphical desktop; virsh/virt-install work from the CLI"
+    fi
+fi
 
 if [[ "$HYPR" == "yes" || "$HYPR" == "online" ]]; then
     echo "== installing the Hyprland/equisdots desktop (as user, with temporary passwordless sudo)"

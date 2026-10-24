@@ -27,6 +27,18 @@ check "the installer verifies zsh before creating the user" \
     grep -q 'command -v zsh >/dev/null && grep -qx /usr/bin/zsh /etc/shells' "$INST"
 check "the core profile no longer duplicates zsh" \
     bash -c "! grep -q 'PKGS=\"\$EXTRA vim zsh\"' '$INST'"
+check "configurator offers an optional virtualization stack" \
+    grep -q 'virtualization' "$SRC/airootfs/root/x-installer/configurator.sh"
+check "install.sh reads the virtualization option" \
+    grep -q 'jget virtualization' "$INST"
+check "virtualization installs qemu, libvirt and virt-manager" \
+    grep -q 'qemu-desktop.*libvirt.*virt-manager' "$INST"
+check "virtualization adds the user to kvm and libvirt" \
+    grep -q 'usermod -aG kvm,libvirt' "$INST"
+check "virtualization enables socket activation" \
+    grep -q 'systemctl enable libvirtd.socket virtlogd.socket' "$INST"
+check "virtualization autostarts the default libvirt network" \
+    grep -q 'networks/autostart/default.xml' "$INST"
 
 if [[ "$FAIL" -eq 0 ]]; then
     echo "installer-defaults: OK"
