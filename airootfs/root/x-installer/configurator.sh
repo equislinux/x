@@ -128,27 +128,32 @@ else
     LUKS_PASS=""
 fi
 
-# Install Hyprland during setup (instead of first boot)?
-HYPR="no"
-if confirm_yes "Install the Hyprland setup during installation (needs network)?" n; then
-    HYPR_SOURCE=""
-    select_one HYPR_SOURCE "Hyprland source" \
-        "Bundled snapshot (offline, pinned)" \
-        "Latest from equisdots (online, needs network)"
-    if [[ "$HYPR_SOURCE" == "Latest from equisdots (online, needs network)" ]]; then
-        HYPR="online"
-    else
-        HYPR="yes"
-    fi
-fi
+# Desktop environment (full online install).
+DESKTOP=""
+select_one DESKTOP "Desktop environment" \
+    "Hyprland (equisdots, online)" \
+    "Niri (equisdots, online)" \
+    "KDE Plasma (online)" \
+    "None (console only)"
+case "$DESKTOP" in
+    "Hyprland (equisdots, online)") DESKTOP="hyprland"; HYPR="online" ;;
+    "Niri (equisdots, online)")     DESKTOP="niri";     HYPR="no" ;;
+    "KDE Plasma (online)")          DESKTOP="kde";      HYPR="no" ;;
+    *)                              DESKTOP="none";     HYPR="no" ;;
+esac
 
 # Install the Xscriptor AI agents/skills bundle during setup?
 AGENTS="no"
 confirm_yes "Install the Xscriptor AI agents/skills bundle (needs network)?" n && AGENTS="yes"
 
+# Optional virtualization stack (QEMU/KVM + libvirt + virt-manager GUI).
+# The GUI needs a graphical desktop; the CLI (virsh/virt-install) works without it.
+VIRT="no"
+confirm_yes "Install the virtualization stack (QEMU/KVM + libvirt + virt-manager GUI)?" n && VIRT="yes"
+
 if [[ "$DRY" == "1" ]]; then
-    printf '{"disk":"%s","mode":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","kernel":"%s","encryption":"%s","hyprland":"%s","agents":"%s"}\n' \
-        "$DISK" "$MODE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$KERNEL" "$ENC" "$HYPR" "$AGENTS"
+    printf '{"disk":"%s","mode":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","kernel":"%s","encryption":"%s","hyprland":"%s","desktop":"%s","agents":"%s","virtualization":"%s"}\n' \
+        "$DISK" "$MODE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$KERNEL" "$ENC" "$HYPR" "$DESKTOP" "$AGENTS" "$VIRT"
     exit 0
 fi
 
@@ -165,7 +170,7 @@ else
 fi
 
 cat > "$OUT" <<EOF
-{"disk":"$DISK","mode":"$MODE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","bootloader":"$BOOT","kernel":"$KERNEL","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","agents":"$AGENTS"}
+{"disk":"$DISK","mode":"$MODE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","bootloader":"$BOOT","kernel":"$KERNEL","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","desktop":"$DESKTOP","agents":"$AGENTS","virtualization":"$VIRT"}
 EOF
 chmod 600 "$OUT"
 echo "configuration written to $OUT"
