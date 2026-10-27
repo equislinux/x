@@ -215,7 +215,7 @@ chmod 700 "$MNT/.snapshots" "$MNT/var/lib/x"
 mount "$EFI" "$MNT/boot"
 
 # Package set per profile.
-EXTRA="base base-devel $KERNEL $KERNEL-headers linux-firmware sudo networkmanager openssh git jq x-release btrfs-progs xfetch-bin xtop-git"
+EXTRA="base base-devel $KERNEL $KERNEL-headers linux-firmware sudo networkmanager openssh git jq x-release x-wallpapers btrfs-progs xfetch-bin xtop-git"
 # Terminal and audio stack are always installed (work without the Hyprland setup).
 # zsh is part of the base set (not only the core profile): every created user
 # gets it as the login shell.
