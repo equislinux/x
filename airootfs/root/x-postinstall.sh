@@ -23,13 +23,13 @@ in_chroot() {
 # 1) System Identity (/etc/os-release) — handled by the x-release package
 #    (its post_install runs x-release-apply). Nothing to do here.
 
-# 2) Asset paths (installed by the x-release package into the target)
+# 2) Asset paths (wallpapers installed by the x-wallpapers package)
 WALL="x-wallpaper.png"
 WALL_PATH="/usr/share/backgrounds/x/$WALL"
 ASSET_WALL="/mnt$WALL_PATH"
 
 if [ ! -f "$ASSET_WALL" ]; then
-  echo "[x] Warning: wallpaper not found at $ASSET_WALL (x-release not installed?)"
+  echo "[x] Warning: wallpaper not found at $ASSET_WALL (x-wallpapers not installed?)"
 fi
 
 # 3) GNOME Branding
