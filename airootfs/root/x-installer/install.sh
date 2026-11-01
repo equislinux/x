@@ -405,6 +405,11 @@ if [[ "$BACKEND" == "xpm" ]]; then
 
     echo "== xpm sync (target databases; official repos + [x])"
     "${XPM[@]}" --scriptlets=skip --no-confirm sync
+    xpm_target_version="$("${XPM[@]}" info xpm 2>/dev/null | awk '/^Version[[:space:]]*:/ {print $3; exit}')"
+    if [[ -z "$xpm_target_version" ]] || (( $(vercmp "$xpm_target_version" 0.1.0-4) < 0 )); then
+        echo "installer: target [x] repo provides xpm ${xpm_target_version:-unknown}; the xpm backend needs >= 0.1.0-4. Publish the post-parity release or choose pacman." >&2
+        exit 1
+    fi
     echo "== xpm phase 1/2 (filesystem + bash)"
     "${XPM[@]}" --scriptlets=skip --no-confirm install --needed filesystem bash
     xpm_bind_pseudo

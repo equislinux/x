@@ -5,6 +5,7 @@ set -euo pipefail
 # the created user must get zsh installed in every profile and as its shell.
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 INST="$SRC/airootfs/root/x-installer/install.sh"
+CONF="$SRC/airootfs/root/x-installer/configurator.sh"
 FAIL=0
 
 check() {
@@ -73,8 +74,12 @@ check "xpm gets a target runtime configuration" \
     grep -q 'xpm_write_config "$MNT/etc/xpm.conf"' "$INST"
 check "xpm uses a target keyring without shell integration" \
     bash -c "grep -q 'pacman-key --gpgdir \"\$GPGDIR\" --init' '$INST' && grep -q -- '--no-shell-integration' '$INST'"
-check "xpm installs in two scriptlet phases" \
-    bash -c "grep -q -- '--scriptlets=skip --no-confirm install --needed filesystem bash' '$INST' && grep -q -- '--scriptlets=require --no-confirm install --needed \$PKGS' '$INST'"
+check "xpm installs base before the remaining profile" \
+    bash -c "grep -q -- '--scriptlets=auto --no-confirm install --needed base' '$INST' && grep -q -- '--scriptlets=auto --no-confirm install --needed \$PKGS' '$INST'"
+check "installer offers the base package manager choice" \
+    bash -c "grep -q 'Package manager for the base system' '$CONF' && grep -q '\"backend\":\"\$BACKEND\"' '$CONF'"
+check "xpm backend requires a post-parity target xpm" \
+    grep -q '0.1.0-4' "$INST"
 check "xpm mirrors the target pacman database and checks parity" \
     bash -c "grep -q 'sync-pacman-db --pacman-db' '$INST' && grep -q 'databases agree' '$INST'"
 check "xpm verifies the installed xpm before the first generation" \
