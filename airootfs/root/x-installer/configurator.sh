@@ -34,6 +34,19 @@ select_one MODE "Install mode" \
     "Dualboot (use free space, keep existing OS)"
 [[ "$MODE" == "Dualboot (use free space, keep existing OS)" ]] && MODE="dualboot" || MODE="wipe"
 
+# Package manager for the target base system.
+BACKEND=""
+select_one BACKEND "Package manager for the base system" \
+    "pacman (stable, production)" \
+    "xpm (native X, experimental)"
+[[ "$BACKEND" == xpm* ]] && BACKEND="xpm" || BACKEND="pacman"
+if [[ "$BACKEND" == "xpm" ]]; then
+    if ! command -v xpm >/dev/null 2>&1 || ! xpm --help 2>&1 | grep -q -- '--scriptlets'; then
+        echo "configurator: this live image lacks the post-parity xpm; using pacman" >&2
+        BACKEND="pacman"
+    fi
+fi
+
 # Language -> system locale.
 LANG_OPTIONS=("English" "Español" "Deutsch" "Français")
 LANG_LABEL=""
@@ -170,7 +183,7 @@ else
 fi
 
 cat > "$OUT" <<EOF
-{"disk":"$DISK","mode":"$MODE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","bootloader":"$BOOT","kernel":"$KERNEL","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","desktop":"$DESKTOP","agents":"$AGENTS","virtualization":"$VIRT"}
+{"disk":"$DISK","mode":"$MODE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","backend":"$BACKEND","bootloader":"$BOOT","kernel":"$KERNEL","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","desktop":"$DESKTOP","agents":"$AGENTS","virtualization":"$VIRT"}
 EOF
 chmod 600 "$OUT"
 echo "configuration written to $OUT"

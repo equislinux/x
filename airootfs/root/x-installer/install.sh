@@ -49,8 +49,14 @@ ESP_OVERRIDE="$(jget esp)"
 MIN_SIZE="$(jget min_size)";          MIN_SIZE="${MIN_SIZE:-20}"
 KERNEL="$(jget kernel)";              KERNEL="${KERNEL:-linux}"
 KERNEL_PARAMS="$(jget kernel_params)"
+BACKEND="$(jget backend)"
+BACKEND="${X_INSTALL_BACKEND:-${BACKEND:-pacman}}"
 
 [[ -n "$DISK" && -n "$HOST" && -n "$USER" ]] || { echo "installer: incomplete JSON" >&2; exit 1; }
+case "$BACKEND" in
+    pacman|xpm) ;;
+    *) echo "installer: invalid backend '$BACKEND' (pacman|xpm)" >&2; exit 1 ;;
+esac
 [[ "$MODE" == "wipe" || "$MODE" == "dualboot" ]] || { echo "installer: invalid mode '$MODE' (wipe|dualboot)" >&2; exit 1; }
 [[ "$MIN_SIZE" =~ ^[0-9]+$ ]] || { echo "installer: min_size must be a number of GiB" >&2; exit 1; }
 case "$KERNEL" in
@@ -78,6 +84,7 @@ if [[ "$DRY" == "1" ]]; then
     echo "  profile:   $PROFILE"
     echo "  kernel:    $KERNEL"
     echo "  bootloader:$BOOT"
+    echo "  backend:   $BACKEND"
     echo "  encryption:$ENC   desktop:$DESKTOP   agents:$AGENTS   virtualization:$VIRT"
     echo "  extra kernel params: ${KERNEL_PARAMS:-none}"
     exit 0
@@ -97,9 +104,102 @@ partdev() {
 
 MNT=/mnt
 PKGLIST="${X_PKGLIST:-/root/x-installer/packages.x86_64}"
+XPM_BOOTSTRAP=/run/xpm-bootstrap.conf
+XPM_PSEUDO_MOUNTED=0
+
+xpm_write_config() {
+    local file="$1" root="$2" cache="$3"
+    local prefix="${root%/}"
+    local url
+    local servers=()
+    while IFS= read -r url; do
+        if [[ -n "$url" ]]; then
+            servers+=("$url")
+        fi
+    done < <(sed -n 's/^[[:space:]]*Server[[:space:]]*=[[:space:]]*//p' /etc/pacman.d/mirrorlist 2>/dev/null | sed 's/[[:space:]]*$//')
+    if [[ "${#servers[@]}" -eq 0 ]]; then
+        servers=('https://geo.mirror.pkgbuild.com/$repo/os/$arch')
+    fi
+    {
+        printf '[options]\n'
+        printf 'root_dir = "%s"\n' "$root"
+        printf 'db_path = "%s/var/lib/xpm"\n' "$prefix"
+        printf 'cache_dir = "%s"\n' "$cache"
+        printf 'log_file = "%s/var/log/xpm.log"\n' "$prefix"
+        printf 'gpg_dir = "%s/etc/pacman.d/gnupg"\n' "$prefix"
+        printf 'pacman_db = "%s/var/lib/pacman"\n' "$prefix"
+        printf 'mirror_pacman = true\n'
+        printf 'shell_integration = false\n'
+        printf 'sig_level = "required"\n'
+        printf 'database_sig_level = "optional"\n'
+        printf 'architecture = "x86_64"\n'
+        printf '\n[[repo]]\n'
+        printf 'name = "x"\n'
+        printf 'server = ["%s"]\n' "${X_XPM_X_REPO:-https://equislinux.github.io/x-repo/repo/x86_64}"
+        printf 'sig_level = "required"\n'
+        printf 'database_sig_level = "required"\n'
+        local repo
+        for repo in core extra; do
+            printf '\n[[repo]]\n'
+            printf 'name = "%s"\n' "$repo"
+            printf 'server = [\n'
+            for url in "${servers[@]}"; do
+                printf '  "%s",\n' "$url"
+            done
+            printf ']\n'
+            printf 'sig_level = "required"\n'
+            printf 'database_sig_level = "optional"\n'
+        done
+    } > "$file"
+}
+
+xpm_bind_pseudo() {
+    mkdir -p "$MNT/dev" "$MNT/dev/pts" "$MNT/proc" "$MNT/sys" "$MNT/run"
+    XPM_PSEUDO_MOUNTED=1
+    mount --rbind /dev "$MNT/dev"
+    mount --rbind /proc "$MNT/proc"
+    mount --rbind /sys "$MNT/sys"
+    mount --rbind /run "$MNT/run"
+}
+
+xpm_unbind_pseudo() {
+    [[ "$XPM_PSEUDO_MOUNTED" == "1" ]] || return 0
+    local p
+    for p in run sys proc dev; do
+        if mountpoint -q "$MNT/$p"; then
+            umount -R "$MNT/$p" 2>/dev/null || umount -Rl "$MNT/$p" 2>/dev/null || true
+        fi
+        if mountpoint -q "$MNT/$p"; then
+            echo "installer: could not unmount $MNT/$p" >&2
+            return 1
+        fi
+    done
+    XPM_PSEUDO_MOUNTED=0
+}
+
+xpm_check_backend() {
+    if ! command -v xpm >/dev/null 2>&1; then
+        echo "installer: the xpm backend needs xpm in the live environment" >&2
+        return 1
+    fi
+    local help
+    help="$(xpm --help 2>&1 || true)"
+    if ! grep -q -- '--scriptlets' <<<"$help" || ! grep -q -- '--no-shell-integration' <<<"$help"; then
+        echo "installer: the live xpm predates the target-install backend (missing --scriptlets/--no-shell-integration); release the post-parity xpm or use X_INSTALL_BACKEND=pacman" >&2
+        return 1
+    fi
+    if ! xpm sync-pacman-db --help >/dev/null 2>&1 \
+        || ! xpm diff --help >/dev/null 2>&1 \
+        || ! xpm history --help >/dev/null 2>&1 \
+        || ! xpm query --help >/dev/null 2>&1; then
+        echo "installer: the live xpm lacks query/diff/history/sync-pacman-db; release the post-parity xpm or use X_INSTALL_BACKEND=pacman" >&2
+        return 1
+    fi
+}
 
 cleanup() {
     rm -f "$MNT/etc/sudoers.d/x-hypr-install" 2>/dev/null || true
+    xpm_unbind_pseudo 2>/dev/null || true
     umount -R "$MNT" 2>/dev/null || umount -Rl "$MNT" 2>/dev/null || true
     if [[ -b /dev/mapper/xroot ]]; then
         # udev can keep a transient reference right after unmounting: retry
@@ -117,6 +217,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+echo "== install backend: $BACKEND"
 echo "== partitioning $DISK (mode: $MODE)"
 if [[ "$MODE" == "dualboot" ]]; then
     # Install into the largest unallocated region, preserving every existing
@@ -215,7 +316,8 @@ chmod 700 "$MNT/.snapshots" "$MNT/var/lib/x"
 mount "$EFI" "$MNT/boot"
 
 # Package set per profile.
-EXTRA="base base-devel $KERNEL $KERNEL-headers linux-firmware sudo networkmanager openssh git jq x-release x-wallpapers btrfs-progs xfetch-bin xtop-git"
+EXTRA="base base-devel $KERNEL $KERNEL-headers linux-firmware mkinitcpio sudo networkmanager openssh git jq x-release x-wallpapers btrfs-progs xfetch-bin xtop-git"
+[[ "$BACKEND" == "xpm" ]] && EXTRA="$EXTRA xpm"
 # Terminal and audio stack are always installed (work without the Hyprland setup).
 # zsh is part of the base set (not only the core profile): every created user
 # gets it as the login shell.
@@ -293,30 +395,122 @@ pacman-key --gpgdir "$GPGDIR" --add "$LIVE_KEY"
 pacman-key --gpgdir "$GPGDIR" --lsign-key "$X_KEY_FPR"
 install -Dm644 "$LIVE_KEY" "$MNT/etc/pacman.d/x-repo.pub"
 
-echo "== pacstrap (online; official repos + [x])"
-pacstrap "$MNT" $PKGS
+if [[ "$BACKEND" == "xpm" ]]; then
+    echo "== xpm target bootstrap"
+    xpm_check_backend
+    XPM_CACHE="${X_XPM_CACHE:-$MNT/var/cache/xpm/pkg}"
+    mkdir -p "$XPM_CACHE" "$MNT/var/lib/xpm" "$MNT/var/lib/pacman" "$MNT/etc/pacman.d"
+    xpm_write_config "$XPM_BOOTSTRAP" "$MNT" "$XPM_CACHE"
+    XPM=(xpm --config "$XPM_BOOTSTRAP" --root "$MNT" --dbpath "$MNT/var/lib/xpm" --cachedir "$XPM_CACHE" --no-shell-integration)
 
-echo "== installing x-scripts (offline payload from the live)"
-XS_PKG="$(ls /root/x-installer/packages/x-scripts-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
-if [[ -n "$XS_PKG" ]]; then
-    cp -f "$XS_PKG" "$MNT/root/"
-    arch-chroot "$MNT" pacman -U --noconfirm "/root/$(basename "$XS_PKG")" >/dev/null
-    rm -f "$MNT/root/$(basename "$XS_PKG")"
-else
-    echo "warning: x-scripts package not found in the live" >&2
-fi
+    echo "== xpm sync (target databases; official repos + [x])"
+    "${XPM[@]}" --scriptlets=skip --no-confirm sync
+    xpm_target_version="$("${XPM[@]}" info xpm 2>/dev/null | awk '/^Version[[:space:]]*:/ {print $3; exit}')"
+    if [[ -z "$xpm_target_version" ]] || (( $(vercmp "$xpm_target_version" 0.1.0-4) < 0 )); then
+        echo "installer: target [x] repo provides xpm ${xpm_target_version:-unknown}; the xpm backend needs >= 0.1.0-4. Publish the post-parity release or choose pacman." >&2
+        exit 1
+    fi
+    echo "== xpm phase 1/2 (filesystem + bash)"
+    "${XPM[@]}" --scriptlets=skip --no-confirm install --needed filesystem bash
+    xpm_bind_pseudo
+    echo "== xpm phase 2/3 (base package set)"
+    "${XPM[@]}" --scriptlets=auto --no-confirm install --needed base
+    echo "== xpm phase 3/3 (remaining packages)"
+    "${XPM[@]}" --scriptlets=auto --no-confirm install --needed $PKGS
 
-# KDE branding is bundled in the live payload so the online Plasma install gets
-# a complete X layer even before x-kde-settings is published as a new package.
-if [[ "$DESKTOP" == "kde" ]]; then
-    XKDE_PKG="$(ls /root/x-installer/packages/x-kde-settings-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
-    if [[ -n "$XKDE_PKG" ]]; then
-        echo "== installing x-kde-settings (bundled)"
-        cp -f "$XKDE_PKG" "$MNT/root/"
-        arch-chroot "$MNT" pacman -U --noconfirm "/root/$(basename "$XKDE_PKG")" >/dev/null
-        rm -f "$MNT/root/$(basename "$XKDE_PKG")"
+    echo "== installing x-scripts (offline payload from the live; xpm)"
+    XS_PKG="$(ls /root/x-installer/packages/x-scripts-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
+    if [[ -n "$XS_PKG" ]]; then
+        "${XPM[@]}" --scriptlets=require --no-confirm install --needed "$XS_PKG"
     else
-        echo "warning: x-kde-settings not found in the live; KDE will use stock Plasma branding" >&2
+        echo "warning: x-scripts package not found in the live" >&2
+    fi
+
+    if [[ "$DESKTOP" == "kde" ]]; then
+        XKDE_PKG="$(ls /root/x-installer/packages/x-kde-settings-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
+        if [[ -n "$XKDE_PKG" ]]; then
+            echo "== installing x-kde-settings (bundled; xpm)"
+            "${XPM[@]}" --scriptlets=require --no-confirm install --needed "$XKDE_PKG"
+        else
+            echo "warning: x-kde-settings not found in the live; KDE will use stock Plasma branding" >&2
+        fi
+    fi
+
+    mkdir -p "$MNT/var/lib/xpm"
+    xpm_write_config "$MNT/etc/xpm.conf" "/" "/var/cache/xpm/pkg"
+
+    echo "== xpm pacman database mirror"
+    "${XPM[@]}" sync-pacman-db --pacman-db "$MNT/var/lib/pacman"
+    XPM_NAMES="/tmp/xpm-names.$$"
+    PACMAN_NAMES="/tmp/pacman-names.$$"
+    "${XPM[@]}" query | awk '{print $1}' | LC_ALL=C sort > "$XPM_NAMES"
+    arch-chroot "$MNT" pacman -Qq | LC_ALL=C sort > "$PACMAN_NAMES"
+    xpm_count="$(wc -l < "$XPM_NAMES")"
+    pacman_count="$(wc -l < "$PACMAN_NAMES")"
+    if [[ "$xpm_count" -ne "$pacman_count" ]] || ! diff -q "$XPM_NAMES" "$PACMAN_NAMES" >/dev/null; then
+        echo "installer: xpm/pacman database mismatch (xpm=$xpm_count pacman=$pacman_count)" >&2
+        diff -u "$XPM_NAMES" "$PACMAN_NAMES" >&2 || true
+        rm -f "$XPM_NAMES" "$PACMAN_NAMES"
+        exit 1
+    fi
+    rm -f "$XPM_NAMES" "$PACMAN_NAMES"
+    echo "   databases agree: $xpm_count package(s)"
+
+    TARGET_XPM_QUERY="/tmp/target-xpm-query.$$"
+    if ! arch-chroot "$MNT" xpm query > "$TARGET_XPM_QUERY" 2>/dev/null \
+        || ! awk '$1 == "xpm" { found = 1 } END { exit !found }' "$TARGET_XPM_QUERY"; then
+        echo "installer: the installed xpm cannot query its database (the published [x] xpm predates the parity work); release xpm before using X_INSTALL_BACKEND=xpm" >&2
+        rm -f "$TARGET_XPM_QUERY"
+        exit 1
+    fi
+    rm -f "$TARGET_XPM_QUERY"
+
+    # A transaction killed by a live-environment reboot can leave a stale
+    # lock; the install is complete and no xpm/pacman transaction is running.
+    rm -f "$MNT/var/lib/xpm/transaction.lock" "$MNT/var/lib/pacman/db.lck"
+
+    echo "== xpm finalize (ldconfig/sysusers/tmpfiles/ca-trust/depmod/mkinitcpio)"
+    arch-chroot "$MNT" ldconfig
+    arch-chroot "$MNT" systemd-sysusers
+    arch-chroot "$MNT" systemd-tmpfiles --create
+    if arch-chroot "$MNT" test -x /usr/bin/update-ca-trust; then
+        arch-chroot "$MNT" update-ca-trust
+    fi
+    arch-chroot "$MNT" depmod -a
+    arch-chroot "$MNT" mkinitcpio -P
+    for image in "/boot/vmlinuz-$KERNEL" "/boot/initramfs-$KERNEL.img"; do
+        if ! arch-chroot "$MNT" test -f "$image"; then
+            echo "installer: $image is missing after mkinitcpio" >&2
+            exit 1
+        fi
+    done
+    xpm_unbind_pseudo || exit 1
+else
+    echo "== pacstrap (online; official repos + [x])"
+    pacstrap "$MNT" $PKGS
+
+    echo "== installing x-scripts (offline payload from the live)"
+    XS_PKG="$(ls /root/x-installer/packages/x-scripts-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
+    if [[ -n "$XS_PKG" ]]; then
+        cp -f "$XS_PKG" "$MNT/root/"
+        arch-chroot "$MNT" pacman -U --noconfirm "/root/$(basename "$XS_PKG")" >/dev/null
+        rm -f "$MNT/root/$(basename "$XS_PKG")"
+    else
+        echo "warning: x-scripts package not found in the live" >&2
+    fi
+
+    # KDE branding is bundled in the live payload so the online Plasma install gets
+    # a complete X layer even before x-kde-settings is published as a new package.
+    if [[ "$DESKTOP" == "kde" ]]; then
+        XKDE_PKG="$(ls /root/x-installer/packages/x-kde-settings-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
+        if [[ -n "$XKDE_PKG" ]]; then
+            echo "== installing x-kde-settings (bundled)"
+            cp -f "$XKDE_PKG" "$MNT/root/"
+            arch-chroot "$MNT" pacman -U --noconfirm "/root/$(basename "$XKDE_PKG")" >/dev/null
+            rm -f "$MNT/root/$(basename "$XKDE_PKG")"
+        else
+            echo "warning: x-kde-settings not found in the live; KDE will use stock Plasma branding" >&2
+        fi
     fi
 fi
 

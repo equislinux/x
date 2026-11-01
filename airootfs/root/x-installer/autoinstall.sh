@@ -42,6 +42,13 @@ if [[ ! -f "$JSON" ]]; then
     exit 0
 fi
 
+if [[ -f "$CIMNT/x-install.env" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$CIMNT/x-install.env"
+    set +a
+fi
+
 dbg "unattended install from $DEV"
 LOG=/tmp/x-install.log
 set +e
