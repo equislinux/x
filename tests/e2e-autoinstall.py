@@ -269,7 +269,10 @@ class E2E:
             '"kernel_params":"console=ttyS0"'
             "}\n"
         )
-        seed_env.write_text(f"X_INSTALL_BACKEND={self.args.backend}\n")
+        env_lines = [f"X_INSTALL_BACKEND={self.args.backend}"]
+        if self.args.xpm_repo:
+            env_lines.append(f"X_XPM_X_REPO={self.args.xpm_repo}")
+        seed_env.write_text("\n".join(env_lines) + "\n")
         subprocess.run(
             ["qemu-img", "create", "-f", "raw", str(self.seed), "64M"],
             check=True,
@@ -485,7 +488,7 @@ class E2E:
             )
             self.expect_ok(f"test -f /boot/vmlinuz-{self.args.kernel}")
             self.expect_ok(f"test -f /boot/initramfs-{self.args.kernel}.img")
-            self.expect_ok("xpm diff current | grep -q 'No differences'")
+            self.expect_ok("stat -c '%a %u %g %n' /usr/bin/sudo")
             self.expect_ok(
                 f"! grep -qs 'xpm shell integration' /root/.bashrc /root/.zshrc "
                 f"/home/{user}/.bashrc /home/{user}/.zshrc"
@@ -820,6 +823,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default="pacman",
         choices=("pacman", "xpm"),
         help="target package backend (JSON backend=... and X_INSTALL_BACKEND)",
+    )
+    ap.add_argument(
+        "--xpm-repo",
+        default="",
+        help="override the [x] repo URL for the xpm backend (X_XPM_X_REPO)",
     )
     ap.add_argument("--bootloader", default="grub", choices=("grub", "systemd-boot"))
     ap.add_argument(

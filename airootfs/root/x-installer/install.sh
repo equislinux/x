@@ -135,7 +135,7 @@ xpm_write_config() {
         printf 'architecture = "x86_64"\n'
         printf '\n[[repo]]\n'
         printf 'name = "x"\n'
-        printf 'server = ["https://equislinux.github.io/x-repo/repo/x86_64"]\n'
+        printf 'server = ["%s"]\n' "${X_XPM_X_REPO:-https://equislinux.github.io/x-repo/repo/x86_64}"
         printf 'sig_level = "required"\n'
         printf 'database_sig_level = "required"\n'
         local repo
@@ -398,7 +398,7 @@ install -Dm644 "$LIVE_KEY" "$MNT/etc/pacman.d/x-repo.pub"
 if [[ "$BACKEND" == "xpm" ]]; then
     echo "== xpm target bootstrap"
     xpm_check_backend
-    XPM_CACHE="${X_XPM_CACHE:-/var/cache/xpm/pkg}"
+    XPM_CACHE="${X_XPM_CACHE:-$MNT/var/cache/xpm/pkg}"
     mkdir -p "$XPM_CACHE" "$MNT/var/lib/xpm" "$MNT/var/lib/pacman" "$MNT/etc/pacman.d"
     xpm_write_config "$XPM_BOOTSTRAP" "$MNT" "$XPM_CACHE"
     XPM=(xpm --config "$XPM_BOOTSTRAP" --root "$MNT" --dbpath "$MNT/var/lib/xpm" --cachedir "$XPM_CACHE" --no-shell-integration)
@@ -408,8 +408,10 @@ if [[ "$BACKEND" == "xpm" ]]; then
     echo "== xpm phase 1/2 (filesystem + bash)"
     "${XPM[@]}" --scriptlets=skip --no-confirm install --needed filesystem bash
     xpm_bind_pseudo
-    echo "== xpm phase 2/2 (base system)"
-    "${XPM[@]}" --scriptlets=require --no-confirm install --needed $PKGS
+    echo "== xpm phase 2/3 (base package set)"
+    "${XPM[@]}" --scriptlets=auto --no-confirm install --needed base
+    echo "== xpm phase 3/3 (remaining packages)"
+    "${XPM[@]}" --scriptlets=auto --no-confirm install --needed $PKGS
 
     echo "== installing x-scripts (offline payload from the live; xpm)"
     XS_PKG="$(ls /root/x-installer/packages/x-scripts-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
