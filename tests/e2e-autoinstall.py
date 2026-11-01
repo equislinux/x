@@ -653,7 +653,16 @@ class E2E:
         # retention to the last N) and the newest one must be the default.
         log("checking that every generation has a boot entry")
         for pkg in ("unzip", "zip", "htop", "ncdu", "bmon"):
-            self.sudo_expect(f"pacman -S --noconfirm {pkg}", f"E2E_PKG_{pkg}", 600)
+            if self.args.backend == "xpm":
+                seg = self.sudo_expect(
+                    f"xpm install --no-confirm --needed {pkg}",
+                    f"E2E_PKG_{pkg}",
+                    600,
+                )
+                if "installed successfully" not in seg:
+                    raise E2EError(f"xpm install {pkg} failed:\n{seg[-800:]}")
+            else:
+                self.sudo_expect(f"pacman -S --noconfirm {pkg}", f"E2E_PKG_{pkg}", 600)
         seg_list = self.sudo_expect("x gen list", "E2E_GENLIST_ALL", 60)
         all_ids = sorted(set(re.findall(r"^(\d{4})\b", seg_list, re.M)), key=int)
         if len(all_ids) < 6:

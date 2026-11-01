@@ -460,6 +460,10 @@ if [[ "$BACKEND" == "xpm" ]]; then
     fi
     rm -f "$TARGET_XPM_QUERY"
 
+    # A transaction killed by a live-environment reboot can leave a stale
+    # lock; the install is complete and no xpm/pacman transaction is running.
+    rm -f "$MNT/var/lib/xpm/transaction.lock" "$MNT/var/lib/pacman/db.lck"
+
     echo "== xpm finalize (ldconfig/sysusers/tmpfiles/ca-trust/depmod/mkinitcpio)"
     arch-chroot "$MNT" ldconfig
     arch-chroot "$MNT" systemd-sysusers
