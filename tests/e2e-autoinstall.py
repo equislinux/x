@@ -24,6 +24,7 @@ mtools); for --mode uefi the OVMF 4m firmware (edk2-ovmf).
 Usage:
     ./tests/e2e-autoinstall.py --mode uefi
     ./tests/e2e-autoinstall.py --mode bios --profile core --encryption no
+    ./tests/e2e-autoinstall.py --mode uefi --backend xpm --profile core
     ./tests/e2e-autoinstall.py --mode uefi --iso out/x-2026.10.03-x86_64.iso
 """
 
@@ -250,6 +251,7 @@ class E2E:
             stdout=subprocess.DEVNULL,
         )
         seed_json = self.workdir / "x-install.json"
+        seed_env = self.workdir / "x-install.env"
         luks = f',"luks_password":"{self.args.password}"' if self.args.encryption == "yes" else ""
         desktop = self.args.desktop
         hypr = "online" if desktop == "hyprland" else "no"
@@ -262,10 +264,12 @@ class E2E:
             f'"profile":"{self.args.profile}","bootloader":"{self.args.bootloader}",'
             f'"kernel":"{self.args.kernel}",'
             f'"encryption":"{self.args.encryption}","hyprland":"{hypr}",'
-            f'"desktop":"{desktop}","agents":"{agents}","virtualization":"{virt}"{luks},'
+            f'"desktop":"{desktop}","agents":"{agents}","virtualization":"{virt}",'
+            f'"backend":"{self.args.backend}"{luks},'
             '"kernel_params":"console=ttyS0"'
             "}\n"
         )
+        seed_env.write_text(f"X_INSTALL_BACKEND={self.args.backend}\n")
         subprocess.run(
             ["qemu-img", "create", "-f", "raw", str(self.seed), "64M"],
             check=True,
@@ -276,6 +280,11 @@ class E2E:
             ["mcopy", "-i", str(self.seed), str(seed_json), "::x-install.json"],
             check=True,
         )
+        subprocess.run(
+            ["mcopy", "-i", str(self.seed), str(seed_env), "::x-install.env"],
+            check=True,
+        )
+        log(f"backend {self.args.backend}")
         if self.args.mode == "uefi":
             shutil.copyfile(OVMF_VARS, self.vars)
 
@@ -396,6 +405,8 @@ class E2E:
             fails=self.FAILS,
         )
         self.console.expect(r"autoinstall: install\.sh rc=0", 180, fails=self.FAILS)
+        if self.args.backend == "xpm" and "install backend: xpm" not in self.console.text:
+            raise E2EError("the installer did not select the xpm backend")
         self.console.pump(3)
         self.stop_qemu()
         # Keep the live-phase serial: phase 2 reuses serial.log.
@@ -462,6 +473,23 @@ class E2E:
         self.expect_ok("pacman -Qq xfetch-bin")
         self.expect_ok("pacman -Qq xtop-git")
         self.expect_ok("pacman -Qq x-scripts")
+        if self.args.backend == "xpm":
+            log("checking the xpm backend (packages, DB parity, boot files)")
+            self.expect_ok("command -v xpm")
+            self.expect_ok("pacman -Qq xpm")
+            for pkg in ("base", self.args.kernel, "mkinitcpio", "xpm"):
+                self.expect_ok(f"xpm query | awk '{{print $1}}' | grep -qx {pkg}")
+            self.expect_ok(
+                "diff -u <(xpm query | awk '{print $1}' | LC_ALL=C sort) "
+                "<(pacman -Qq | LC_ALL=C sort)"
+            )
+            self.expect_ok(f"test -f /boot/vmlinuz-{self.args.kernel}")
+            self.expect_ok(f"test -f /boot/initramfs-{self.args.kernel}.img")
+            self.expect_ok("xpm diff current | grep -q 'No differences'")
+            self.expect_ok(
+                f"! grep -qs 'xpm shell integration' /root/.bashrc /root/.zshrc "
+                f"/home/{user}/.bashrc /home/{user}/.zshrc"
+            )
         log("checking the created user's shell (zsh)")
         self.expect_ok("pacman -Qq zsh")
         self.expect_ok(f'getent passwd {user} | cut -d: -f7 | grep -qx /usr/bin/zsh')
@@ -567,22 +595,38 @@ class E2E:
             raise E2EError(f"x gen verify did not report a clean match:\n{seg}")
         log(f"verify OK: live system matches generation {RUNNING_ID}")
 
-        # Regression: generations recorded by the pacman hooks must never
+        # Regression: generations recorded by the package hooks must never
         # freeze /var/lib/pacman/db.lck (it exists during the transaction).
         log("checking that hooks do not freeze pacman's db.lck")
-        self.console.send("sudo pacman -S --noconfirm tree >/dev/null 2>&1; echo E2E_PKG\" \"_END\n")
-        if self.console.expect_opt(r"[Pp]assword[^\n]*:", 5):
-            self.console.send(f"{self.args.password}\n")
-        self.console.expect(r"E2E_PKG _END", 300)
+        if self.args.backend == "xpm":
+            seg = self.sudo_expect("xpm install --no-confirm --needed tree", "E2E_PKG", 300)
+            if "installed successfully" not in seg:
+                raise E2EError(f"xpm install did not report success:\n{seg[-800:]}")
+            self.expect_ok("pacman -Qq tree")
+        else:
+            self.console.send("sudo pacman -S --noconfirm tree >/dev/null 2>&1; echo E2E_PKG\" \"_END\n")
+            if self.console.expect_opt(r"[Pp]assword[^\n]*:", 5):
+                self.console.send(f"{self.args.password}\n")
+            self.console.expect(r"E2E_PKG _END", 300)
         self.console.send("sudo x gen list | tail -3; echo E2E_GENLIST\" \"_END\n")
         _, seg_list = self.console.expect(r"E2E_GENLIST _END", 60)
         if "0002" not in seg_list:
-            raise E2EError(f"the pacman hook did not record a new generation:\n{seg_list[-600:]}")
+            raise E2EError(f"the package hooks did not record a new generation:\n{seg_list[-600:]}")
         self.console.send("sudo find /.snapshots -name 'db.*' -print; echo E2E_LOCK\" \"_END\n")
         _, seg = self.console.expect(r"E2E_LOCK _END", 90)
         if re.search(r"/\.snapshots/\S*db\.lck", seg):
             raise E2EError(f"a generation froze pacman's db.lck:\n{seg[-600:]}")
         log("db.lck regression OK (hooks recorded a generation, no lock inside)")
+
+        if self.args.backend == "xpm":
+            log("checking xpm history generation link and xpm diff current")
+            seg = self.sudo_expect("xpm history", "E2E_XPM_HIST", 90)
+            if not re.search(r"gen:\d{4}", seg):
+                raise E2EError(f"xpm history has no generation link:\n{seg[-800:]}")
+            seg = self.sudo_expect("xpm diff current", "E2E_XPM_DIFF", 120)
+            if "No differences" not in seg:
+                raise E2EError(f"xpm diff current is not clean:\n{seg[-800:]}")
+            log("xpm history/diff OK")
 
         # Newest-wins: the post-transaction generation must be the default and
         # the next boot must actually land on it.
@@ -734,7 +778,10 @@ class E2E:
             if not self.args.skip_install:
                 self.phase_install()
             self.phase_verify()
-            log(f"E2E OK ({self.args.mode}, profile {self.args.profile})")
+            log(
+                f"E2E OK ({self.args.mode}, profile {self.args.profile}, "
+                f"backend {self.args.backend})"
+            )
             return 0
         except E2EError as exc:
             log(f"E2E FAILED: {exc}")
@@ -768,6 +815,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="QEMU key sent to pick the autoinstall entry ('a' for the syslinux/GRUB hotkey, 'ret' for a systemd-boot default entry)",
     )
     ap.add_argument("--profile", default="core", choices=("core", "full"))
+    ap.add_argument(
+        "--backend",
+        default="pacman",
+        choices=("pacman", "xpm"),
+        help="target package backend (JSON backend=... and X_INSTALL_BACKEND)",
+    )
     ap.add_argument("--bootloader", default="grub", choices=("grub", "systemd-boot"))
     ap.add_argument(
         "--kernel",
