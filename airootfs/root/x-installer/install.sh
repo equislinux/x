@@ -441,6 +441,8 @@ if [[ "$BACKEND" == "xpm" ]]; then
 
     echo "== xpm pacman database mirror"
     "${XPM[@]}" sync-pacman-db --pacman-db "$MNT/var/lib/pacman"
+    echo "== pacman sync databases for post-install tooling"
+    arch-chroot "$MNT" pacman -Sy --noconfirm
     XPM_NAMES="/tmp/xpm-names.$$"
     PACMAN_NAMES="/tmp/pacman-names.$$"
     "${XPM[@]}" query | awk '{print $1}' | LC_ALL=C sort > "$XPM_NAMES"
@@ -629,8 +631,13 @@ fi
 
 if [[ "$AGENTS" == "yes" ]]; then
     echo "== installing the opencode CLI (opencode-bin from [x])"
-    arch-chroot "$MNT" pacman -S --needed --noconfirm opencode-bin >/dev/null 2>&1 \
-        || echo "warning: opencode-bin not installed (is it published in [x]?)"
+    if [[ "$BACKEND" == "xpm" ]]; then
+        arch-chroot "$MNT" xpm install --no-confirm --needed opencode-bin >/dev/null 2>&1 \
+            || echo "warning: opencode-bin not installed (is it published in [x]?)"
+    else
+        arch-chroot "$MNT" pacman -S --needed --noconfirm opencode-bin >/dev/null 2>&1 \
+            || echo "warning: opencode-bin not installed (is it published in [x]?)"
+    fi
     echo "== installing the Xscriptor AI agents/skills bundle (as user)"
     set +e
     arch-chroot "$MNT" runuser -u "$USER" -- env \
