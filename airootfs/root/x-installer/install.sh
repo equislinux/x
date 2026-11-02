@@ -756,6 +756,13 @@ if [[ "$MODE" == "dualboot" ]]; then
     fi
 fi
 
+# Desktop/AUR helpers still use pacman/yay; import their result so xpm sees the
+# full installed set before the first generation capture.
+if [[ "$BACKEND" == "xpm" ]]; then
+    echo "== importing pacman-installed desktop/AUR packages into xpm"
+    arch-chroot "$MNT" xpm import-pacman --force
+fi
+
 # First generation: snapshot of the installed system + manifest (base for
 # rollbacks and granular restores; see scripts/docs/en/generations.md).
 echo "== first generation"
