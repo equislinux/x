@@ -652,7 +652,7 @@ class E2E:
         # Every generation must stay selectable in the boot menu (no silent
         # retention to the last N) and the newest one must be the default.
         log("checking that every generation has a boot entry")
-        for pkg in ("unzip", "zip", "htop", "ncdu", "bmon"):
+        for pkg in ("cowsay", "zip", "htop", "ncdu", "bmon"):
             if self.args.backend == "xpm":
                 seg = self.sudo_expect(
                     f"xpm install --no-confirm --needed {pkg}",
