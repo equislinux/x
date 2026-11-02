@@ -426,6 +426,14 @@ if [[ "$BACKEND" == "xpm" ]]; then
         echo "warning: x-scripts package not found in the live" >&2
     fi
 
+    # xpm runs package scriptlets in the target; archlinux-keyring's scriptlet
+    # can no-op when the target keyring was initialized before the package was
+    # installed. Re-populate now that the package tree is present so later AUR
+    # dependency installs can verify every Arch packager signature.
+    echo "== refreshing target Arch keyring"
+    arch-chroot "$MNT" pacman-key --populate archlinux || \
+        echo "warning: could not refresh the target Arch keyring" >&2
+
     if [[ "$DESKTOP" == "kde" ]]; then
         XKDE_PKG="$(ls /root/x-installer/packages/x-kde-settings-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
         if [[ -n "$XKDE_PKG" ]]; then
