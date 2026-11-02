@@ -442,7 +442,9 @@ if [[ "$BACKEND" == "xpm" ]]; then
     echo "== xpm pacman database mirror"
     "${XPM[@]}" sync-pacman-db --pacman-db "$MNT/var/lib/pacman"
     echo "== pacman sync databases for post-install tooling"
-    arch-chroot "$MNT" pacman -Sy --noconfirm
+    mkdir -p "$MNT/var/lib/pacman/sync"
+    cp -f "$MNT/var/lib/xpm/sync/"*.db "$MNT/var/lib/pacman/sync/" 2>/dev/null || true
+    cp -f "$MNT/var/lib/xpm/sync/"*.files "$MNT/var/lib/pacman/sync/" 2>/dev/null || true
     XPM_NAMES="/tmp/xpm-names.$$"
     PACMAN_NAMES="/tmp/pacman-names.$$"
     "${XPM[@]}" query | awk '{print $1}' | LC_ALL=C sort > "$XPM_NAMES"
