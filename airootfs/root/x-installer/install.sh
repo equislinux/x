@@ -445,6 +445,16 @@ if [[ "$BACKEND" == "xpm" ]]; then
     mkdir -p "$MNT/var/lib/pacman/sync"
     cp -f "$MNT/var/lib/xpm/sync/"*.db "$MNT/var/lib/pacman/sync/" 2>/dev/null || true
     cp -f "$MNT/var/lib/xpm/sync/"*.files "$MNT/var/lib/pacman/sync/" 2>/dev/null || true
+    for repo in x core extra; do
+        for suffix in db files; do
+            for src in "$MNT/var/lib/xpm/sync/.$repo.$suffix.part.sig" \
+                       "$MNT/var/lib/xpm/sync/$repo.$suffix.sig"; do
+                if [[ -f "$src" ]]; then
+                    cp -f "$src" "$MNT/var/lib/pacman/sync/$repo.$suffix.sig"
+                fi
+            done
+        done
+    done
     XPM_NAMES="/tmp/xpm-names.$$"
     PACMAN_NAMES="/tmp/pacman-names.$$"
     "${XPM[@]}" query | awk '{print $1}' | LC_ALL=C sort > "$XPM_NAMES"
