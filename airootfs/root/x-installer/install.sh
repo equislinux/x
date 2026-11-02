@@ -756,7 +756,8 @@ if [[ "$MODE" == "dualboot" ]]; then
     fi
 fi
 
-# Desktop/AUR helpers still use pacman/yay; import their result so xpm sees the
+# Desktop setup prefers xpm-aur, but yay/paru remain fallbacks and pacman is
+# still used by some helpers. Import any pacman-only records so xpm sees the
 # full installed set before the first generation capture.
 if [[ "$BACKEND" == "xpm" ]]; then
     echo "== importing pacman-installed desktop/AUR packages into xpm"
