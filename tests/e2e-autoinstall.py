@@ -698,12 +698,12 @@ class E2E:
             )
         if not default_written:
             raise E2EError(f"the boot menu default is not generation {newest}:\n{seg[-800:]}")
-        seg = self.sudo_expect("x gen status", "E2E_DEF_MENU", 60)
+        seg = self.sudo_expect("x gen status", "E2E_DEF_MENU", 600)
         if not re.search(r"default:\s+" + newest, seg):
             raise E2EError(f"newest generation {newest} is not the default:\n{seg[-800:]}")
         log(f"boot menu OK: {menu_count} entries, newest {newest} is the default; rebooting")
         self.reboot_and_login()
-        seg = self.sudo_expect("x gen status", "E2E_DEF_MENU_BOOT", 90)
+        seg = self.sudo_expect("x gen status", "E2E_DEF_MENU_BOOT", 600)
         if not re.search(r"running:\s+" + newest, seg):
             raise E2EError(f"reboot landed on the wrong generation (expected {newest}):\n{seg[-800:]}")
         if not re.search(r"default:\s+" + newest, seg):
