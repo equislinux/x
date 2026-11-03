@@ -530,6 +530,11 @@ class E2E:
             self.expect_ok(f"test -f /home/{user}/.config/hypr/settings.json")
             self.expect_ok(f"test -d /home/{user}/.config/hypr/scripts/quickshell")
             self.expect_ok(f"test -x /home/{user}/.local/bin/dots")
+            self.expect_ok("pacman -Qq quickshell-git")
+            self.expect_ok("pacman -Qq swayosd-git")
+            self.expect_ok("pacman -Qq bibata-cursor-theme")
+            self.expect_ok("pacman -Qq mpvpaper")
+            self.expect_ok("pacman -Qq networkmanager-dmenu-git")
         if self.args.desktop == "niri":
             log("checking niri/equisdots payload")
             self.expect_ok("pacman -Qq niri")
