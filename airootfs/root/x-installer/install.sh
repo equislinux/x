@@ -103,6 +103,19 @@ partdev() {
 }
 
 MNT=/mnt
+INSTALL_STEP=0
+INSTALL_STEPS=10
+installer_progress() {
+    local label="$1"
+    INSTALL_STEP=$((INSTALL_STEP + 1))
+    (( INSTALL_STEP <= INSTALL_STEPS )) || INSTALL_STEP=$INSTALL_STEPS
+    local percent=$(( INSTALL_STEP * 100 / INSTALL_STEPS ))
+    local filled=$(( percent * 20 / 100 ))
+    printf '\n[%s%s] %3d%%  %s\n' \
+        "$(printf 'x%.0s' $(seq 1 "$filled"))" \
+        "$(printf -- '-%.0s' $(seq 1 $((20 - filled))))" \
+        "$percent" "$label"
+}
 PKGLIST="${X_PKGLIST:-/root/x-installer/packages.x86_64}"
 XPM_BOOTSTRAP=/run/xpm-bootstrap.conf
 XPM_PSEUDO_MOUNTED=0
@@ -217,6 +230,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
+installer_progress "Preparando disco y modo de instalación"
 echo "== install backend: $BACKEND"
 echo "== partitioning $DISK (mode: $MODE)"
 if [[ "$MODE" == "dualboot" ]]; then
@@ -343,6 +357,7 @@ else
     fi
 fi
 
+installer_progress "Comprobando red"
 echo "== waiting for network"
 NET_OK=0
 for i in $(seq 1 60); do
@@ -365,6 +380,7 @@ fi
 #     and locally sign the key here (idempotent; x-keyring.service also does
 #     it at boot).
 #   - target: prepared here so the installed system trusts [x] (Required).
+installer_progress "Preparando keyring"
 echo "== keyring (live + target)"
 # Idempotent: pacman-init.service usually did this at boot, but autoinstall can
 # race with it, so make sure the live keyring exists and has the Arch keys
@@ -396,7 +412,8 @@ pacman-key --gpgdir "$GPGDIR" --lsign-key "$X_KEY_FPR"
 install -Dm644 "$LIVE_KEY" "$MNT/etc/pacman.d/x-repo.pub"
 
 if [[ "$BACKEND" == "xpm" ]]; then
-    echo "== xpm target bootstrap"
+    installer_progress "Instalando paquetes base"
+echo "== xpm target bootstrap"
     xpm_check_backend
     XPM_CACHE="${X_XPM_CACHE:-$MNT/var/cache/xpm/pkg}"
     mkdir -p "$XPM_CACHE" "$MNT/var/lib/xpm" "$MNT/var/lib/pacman" "$MNT/etc/pacman.d"
@@ -536,6 +553,7 @@ else
     fi
 fi
 
+installer_progress "Configuración base"
 echo "== base configuration"
 genfstab -U "$MNT" >> "$MNT/etc/fstab"
 # Volatile /tmp as tmpfs: keeps generation snapshots free of transient files.
@@ -563,6 +581,7 @@ Server = https://equislinux.github.io/x-repo/repo/x86_64
 EOF
 fi
 
+installer_progress "Usuario y herramientas AUR"
 echo "== user"
 arch-chroot "$MNT" useradd -m -G wheel -s /usr/bin/zsh "$USER"
 # The zsh package owns /usr/bin/zsh and registers it in /etc/shells. Fail
@@ -596,6 +615,7 @@ arch-chroot "$MNT" runuser -u "$USER" -- \
     xpm-aur -S --aur --needed --noconfirm "$AUR_XFETCH" "$AUR_XTOP"
 rm -f "$MNT/etc/sudoers.d/x-aur-install"
 
+installer_progress "Provisionando x-scripts"
 echo "== provisioning (x-scripts)"
 arch-chroot "$MNT" env X_HW_AUTO=0 X_GEN_SKIP=1 x setup
 arch-chroot "$MNT" runuser -u "$USER" -- env X_HYPRLAND=0 X_HW_AUTO=0 /usr/bin/x setup --user
@@ -618,6 +638,7 @@ if [[ "$VIRT" == "yes" ]]; then
     fi
 fi
 
+installer_progress "Instalando escritorio"
 if [[ "$DESKTOP" == "hyprland" ]]; then
     echo "== installing the Hyprland/equisdots desktop (as user, with temporary passwordless sudo)"
     cat > "$MNT/etc/sudoers.d/x-hypr-install" <<'EOF'
@@ -702,6 +723,7 @@ if [[ -x "$MNT/usr/bin/x-release-apply" ]]; then
     arch-chroot "$MNT" /usr/bin/x-release-apply || true
 fi
 
+installer_progress "Instalando bootloader"
 echo "== bootloader ($BOOT)"
 if [[ "$BOOT" == "systemd-boot" ]]; then
     # bootctl also writes the fallback \EFI\BOOT\BOOTX64.EFI; in dualboot that
@@ -793,6 +815,7 @@ fi
 
 # First generation: snapshot of the installed system + manifest (base for
 # rollbacks and granular restores; see scripts/docs/en/generations.md).
+installer_progress "Creando primera generación"
 echo "== first generation"
 if arch-chroot "$MNT" test -x /usr/bin/x; then
     arch-chroot "$MNT" env X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ \
