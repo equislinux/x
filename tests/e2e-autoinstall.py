@@ -473,8 +473,10 @@ class E2E:
         """Assert the base tools (and the desktop payload when requested)."""
         user = self.args.user
         log("checking base tools (xfetch/xtop)")
-        self.expect_ok("pacman -Qq xfetch-bin")
-        self.expect_ok("pacman -Qq xtop-git")
+        self.expect_ok("command -v xfetch")
+        self.expect_ok("command -v xtop")
+        self.expect_ok("pacman -Qq | grep -Eq '^(xfetch-bin|xfetch-git)$'")
+        self.expect_ok("pacman -Qq | grep -Eq '^(xtop-git)$'")
         self.expect_ok("pacman -Qq x-scripts")
         if self.args.backend == "xpm":
             log("checking the xpm backend (packages, DB parity, boot files)")

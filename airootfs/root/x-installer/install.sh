@@ -316,7 +316,7 @@ chmod 700 "$MNT/.snapshots" "$MNT/var/lib/x"
 mount "$EFI" "$MNT/boot"
 
 # Package set per profile.
-EXTRA="base base-devel $KERNEL $KERNEL-headers linux-firmware mkinitcpio sudo networkmanager openssh git jq x-release x-wallpapers btrfs-progs xfetch-bin xtop-git"
+EXTRA="base base-devel $KERNEL $KERNEL-headers linux-firmware mkinitcpio sudo networkmanager openssh git jq x-release x-wallpapers btrfs-progs"
 [[ "$BACKEND" == "xpm" ]] && EXTRA="$EXTRA xpm"
 # Terminal and audio stack are always installed (work without the Hyprland setup).
 # zsh is part of the base set (not only the core profile): every created user
@@ -575,6 +575,36 @@ if [[ "$VIRT" == "yes" ]]; then
     arch-chroot "$MNT" groupadd -f kvm
     arch-chroot "$MNT" groupadd -f libvirt
     arch-chroot "$MNT" usermod -aG kvm,libvirt "$USER"
+fi
+
+# xfetch and xtop are AUR packages so new releases can be picked up by the
+# AUR helper without rebuilding the ISO. Package names are kept configurable
+# for the soon-to-be-published xtop AUR entry.
+AUR_XFETCH="${X_AUR_XFETCH:-xfetch-git}"
+AUR_XTOP="${X_AUR_XTOP:-xtop-git}"
+echo "== AUR tools ($AUR_XFETCH, $AUR_XTOP)"
+aur_ok=0
+if [[ "$BACKEND" == "xpm" ]]; then
+    arch-chroot "$MNT" xpm install --no-confirm --needed xpm-aur >/dev/null 2>&1 || true
+    cat > "$MNT/etc/sudoers.d/x-aur-install" <<'EOF'
+%wheel ALL=(ALL) NOPASSWD: ALL
+EOF
+    chmod 440 "$MNT/etc/sudoers.d/x-aur-install"
+    if arch-chroot "$MNT" runuser -u "$USER" --         xpm-aur -S --needed --noconfirm "$AUR_XFETCH" "$AUR_XTOP"; then
+        aur_ok=1
+    else
+        echo "warning: AUR install of $AUR_XFETCH/$AUR_XTOP failed; falling back to [x] binaries" >&2
+    fi
+    rm -f "$MNT/etc/sudoers.d/x-aur-install"
+else
+    echo "warning: AUR tools need the xpm backend; falling back to [x] binaries" >&2
+fi
+if [[ "$aur_ok" != "1" ]]; then
+    if [[ "$BACKEND" == "xpm" ]]; then
+        arch-chroot "$MNT" xpm install --no-confirm --needed xfetch-bin xtop-git >/dev/null 2>&1 || true
+    else
+        arch-chroot "$MNT" pacman -S --needed --noconfirm xfetch-bin xtop-git >/dev/null 2>&1 || true
+    fi
 fi
 
 echo "== provisioning (x-scripts)"
