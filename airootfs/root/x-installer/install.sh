@@ -604,8 +604,10 @@ echo "== AUR tools ($AUR_XFETCH, $AUR_XTOP)"
 if [[ "$BACKEND" == "xpm" ]]; then
     arch-chroot "$MNT" xpm install --no-confirm --needed xpm-aur >/dev/null 2>&1
 else
-    # xpm-aur is a normal [x] package; xpm is its runtime.
+    # xpm-aur is a normal [x] package; xpm is its runtime. Seed xpm's
+    # database from pacman before it installs the AUR binary packages.
     arch-chroot "$MNT" pacman -S --needed --noconfirm xpm-aur >/dev/null 2>&1
+    arch-chroot "$MNT" xpm import-pacman --force >/dev/null 2>&1
 fi
 cat > "$MNT/etc/sudoers.d/x-aur-install" <<'EOF'
 %wheel ALL=(ALL) NOPASSWD: ALL
