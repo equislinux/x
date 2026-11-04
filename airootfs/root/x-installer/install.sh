@@ -577,35 +577,24 @@ if [[ "$VIRT" == "yes" ]]; then
     arch-chroot "$MNT" usermod -aG kvm,libvirt "$USER"
 fi
 
-# xfetch and xtop are AUR packages so new releases can be picked up by the
-# AUR helper without rebuilding the ISO. Package names are kept configurable
-# for the soon-to-be-published xtop AUR entry.
-AUR_XFETCH="${X_AUR_XFETCH:-xfetch-git}"
-AUR_XTOP="${X_AUR_XTOP:-xtop-git}"
+# xfetch and xtop ship as AUR binary packages; installing them through
+# xpm-aur keeps them tracked and upgradable without compiling during setup.
+AUR_XFETCH="${X_AUR_XFETCH:-xfetch-core-bin}"
+AUR_XTOP="${X_AUR_XTOP:-xtop-bin}"
 echo "== AUR tools ($AUR_XFETCH, $AUR_XTOP)"
-aur_ok=0
 if [[ "$BACKEND" == "xpm" ]]; then
-    arch-chroot "$MNT" xpm install --no-confirm --needed xpm-aur >/dev/null 2>&1 || true
-    cat > "$MNT/etc/sudoers.d/x-aur-install" <<'EOF'
+    arch-chroot "$MNT" xpm install --no-confirm --needed xpm-aur >/dev/null 2>&1
+else
+    # xpm-aur is a normal [x] package; xpm is its runtime.
+    arch-chroot "$MNT" pacman -S --needed --noconfirm xpm-aur >/dev/null 2>&1
+fi
+cat > "$MNT/etc/sudoers.d/x-aur-install" <<'EOF'
 %wheel ALL=(ALL) NOPASSWD: ALL
 EOF
-    chmod 440 "$MNT/etc/sudoers.d/x-aur-install"
-    if arch-chroot "$MNT" runuser -u "$USER" --         xpm-aur -S --aur --needed --noconfirm "$AUR_XFETCH" "$AUR_XTOP"; then
-        aur_ok=1
-    else
-        echo "warning: AUR install of $AUR_XFETCH/$AUR_XTOP failed; falling back to [x] binaries" >&2
-    fi
-    rm -f "$MNT/etc/sudoers.d/x-aur-install"
-else
-    echo "warning: AUR tools need the xpm backend; falling back to [x] binaries" >&2
-fi
-if [[ "$aur_ok" != "1" ]]; then
-    if [[ "$BACKEND" == "xpm" ]]; then
-        arch-chroot "$MNT" xpm install --no-confirm --needed xfetch-bin xtop-git >/dev/null 2>&1 || true
-    else
-        arch-chroot "$MNT" pacman -S --needed --noconfirm xfetch-bin xtop-git >/dev/null 2>&1 || true
-    fi
-fi
+chmod 440 "$MNT/etc/sudoers.d/x-aur-install"
+arch-chroot "$MNT" runuser -u "$USER" -- \
+    xpm-aur -S --aur --needed --noconfirm "$AUR_XFETCH" "$AUR_XTOP"
+rm -f "$MNT/etc/sudoers.d/x-aur-install"
 
 echo "== provisioning (x-scripts)"
 arch-chroot "$MNT" env X_HW_AUTO=0 X_GEN_SKIP=1 x setup

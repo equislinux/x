@@ -475,8 +475,8 @@ class E2E:
         log("checking base tools (xfetch/xtop)")
         self.expect_ok("command -v xfetch")
         self.expect_ok("command -v xtop")
-        self.expect_ok("pacman -Qq | grep -Eq '^(xfetch-bin|xfetch-git)$'")
-        self.expect_ok("pacman -Qq | grep -Eq '^(xtop-git)$'")
+        self.expect_ok("pacman -Qq | grep -Eq '^(xfetch-bin|xfetch-git|xfetch-core-bin)$'")
+        self.expect_ok("pacman -Qq | grep -Eq '^(xtop-git|xtop-bin)$'")
         self.expect_ok("pacman -Qq x-scripts")
         if self.args.backend == "xpm":
             log("checking the xpm backend (packages, DB parity, boot files)")
