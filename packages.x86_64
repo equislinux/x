@@ -150,8 +150,6 @@ x-dev
 xpm
 
 ## X tools
-xfetch-bin
-xtop-git
 
 ## Installer (text)
 gum
