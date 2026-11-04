@@ -590,7 +590,7 @@ if [[ "$BACKEND" == "xpm" ]]; then
 %wheel ALL=(ALL) NOPASSWD: ALL
 EOF
     chmod 440 "$MNT/etc/sudoers.d/x-aur-install"
-    if arch-chroot "$MNT" runuser -u "$USER" --         xpm-aur -S --needed --noconfirm "$AUR_XFETCH" "$AUR_XTOP"; then
+    if arch-chroot "$MNT" runuser -u "$USER" --         xpm-aur -S --aur --needed --noconfirm "$AUR_XFETCH" "$AUR_XTOP"; then
         aur_ok=1
     else
         echo "warning: AUR install of $AUR_XFETCH/$AUR_XTOP failed; falling back to [x] binaries" >&2
