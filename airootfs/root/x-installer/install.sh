@@ -554,6 +554,26 @@ else
 fi
 
 installer_progress "Configuración base"
+# SDDM's X theme uses Hack Nerd Font. Prefer the signed x-scripts payload so
+# future font/theme changes do not require an ISO rebuild; keep an inline
+# fallback for older x-scripts payloads. Failure is non-fatal.
+echo "== system font (SDDM)"
+if [[ -x "$MNT/usr/share/x/install/payloads/10-fonts.sh" ]]; then
+    arch-chroot "$MNT" /usr/share/x/install/payloads/10-fonts.sh || \
+        echo "warning: font payload failed; SDDM may use fallback glyphs" >&2
+else
+    arch-chroot "$MNT" bash -c '
+        set -e
+        url=https://raw.githubusercontent.com/xscriptor-colors/terminal/main/assets/fonts/HackNerdFont/HackNerdFont-Regular.ttf
+        tmp=$(mktemp)
+        trap "rm -f $tmp" EXIT
+        curl -fsSL --retry 2 --connect-timeout 10 "$url" -o "$tmp"
+        install -d -m 0755 /usr/share/fonts/HackNerdFont
+        install -m 0644 "$tmp" /usr/share/fonts/HackNerdFont/HackNerdFont-Regular.ttf
+        command -v fc-cache >/dev/null 2>&1 && fc-cache -f >/dev/null 2>&1 || true
+    ' || echo "warning: font download failed; SDDM may use fallback glyphs" >&2
+fi
+
 echo "== base configuration"
 genfstab -U "$MNT" >> "$MNT/etc/fstab"
 # Volatile /tmp as tmpfs: keeps generation snapshots free of transient files.

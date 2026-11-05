@@ -554,6 +554,8 @@ class E2E:
             self.expect_ok("grep -q 'LookAndFeelPackage=org.x.desktop' /etc/xdg/kdeglobals")
             self.expect_ok("test -f /usr/share/color-schemes/XDark.colors")
             self.expect_ok("test -f /usr/share/sddm/themes/x/Main.qml")
+            self.expect_ok("test -f /usr/share/fonts/HackNerdFont/HackNerdFont-Regular.ttf")
+            self.expect_ok("fc-match -f '%{file}\n' 'Hack Nerd Font' | grep -q HackNerdFont")
             self.expect_ok("systemctl is-enabled sddm.service")
             self.expect_ok("test -f /usr/share/wayland-sessions/plasma.desktop")
         self.expect_ok("grep -q '^PRETTY_NAME=\"X Linux\"' /etc/os-release")
