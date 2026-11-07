@@ -7,6 +7,8 @@ set -euo pipefail
 #   X_DRY=1         validate and print the plan only (tests)
 
 source "$(dirname "${BASH_SOURCE[0]}")/ui.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/network.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/early-xpm.sh"
 
 JSON="${X_INSTALL_JSON:-/tmp/x-install.json}"
 DRY="${X_DRY:-0}"
@@ -51,6 +53,10 @@ KERNEL="$(jget kernel)";              KERNEL="${KERNEL:-linux}"
 KERNEL_PARAMS="$(jget kernel_params)"
 BACKEND="$(jget backend)"
 BACKEND="${X_INSTALL_BACKEND:-${BACKEND:-pacman}}"
+WIFI_SSID="$(jget wifi_ssid)"
+WIFI_PASSWORD="$(jget wifi_password)"
+export X_WIFI_SSID="${X_WIFI_SSID:-$WIFI_SSID}"
+export X_WIFI_PASSWORD="${X_WIFI_PASSWORD:-$WIFI_PASSWORD}"
 
 [[ -n "$DISK" && -n "$HOST" && -n "$USER" ]] || { echo "installer: incomplete JSON" >&2; exit 1; }
 case "$BACKEND" in
@@ -104,7 +110,7 @@ partdev() {
 
 MNT=/mnt
 INSTALL_STEP=0
-INSTALL_STEPS=10
+INSTALL_STEPS=11
 installer_progress() {
     local label="$1"
     INSTALL_STEP=$((INSTALL_STEP + 1))
@@ -116,6 +122,12 @@ installer_progress() {
         "$(printf -- '-%.0s' $(seq 1 $((20 - filled))))" \
         "$percent" "$label"
 }
+
+installer_progress "Red y conectividad"
+if ! network_setup; then
+    echo "installer: no se pudo configurar la red; se necesita conexión para instalar" >&2
+    exit 1
+fi
 PKGLIST="${X_PKGLIST:-/root/x-installer/packages.x86_64}"
 XPM_BOOTSTRAP=/run/xpm-bootstrap.conf
 XPM_PSEUDO_MOUNTED=0
@@ -358,20 +370,11 @@ else
 fi
 
 installer_progress "Comprobando red"
-echo "== waiting for network"
-NET_OK=0
-for i in $(seq 1 60); do
-    if getent ahostsv4 geo.mirror.pkgbuild.com >/dev/null 2>&1; then
-        echo "network available"
-        NET_OK=1
-        break
-    fi
-    sleep 2
-done
-if [[ "$NET_OK" -ne 1 ]]; then
-    echo "installer: no network after 120s; aborting" >&2
+if ! network_online; then
+    echo "installer: network disappeared after setup; aborting" >&2
     exit 1
 fi
+echo "network available"
 
 # Keyrings. The published [x] database is signed, so pacman needs the project
 # key. Two targets:
@@ -410,6 +413,11 @@ pacman-key --gpgdir "$GPGDIR" --populate archlinux
 pacman-key --gpgdir "$GPGDIR" --add "$LIVE_KEY"
 pacman-key --gpgdir "$GPGDIR" --lsign-key "$X_KEY_FPR"
 install -Dm644 "$LIVE_KEY" "$MNT/etc/pacman.d/x-repo.pub"
+
+# Keep the live bootstrap current, but never let an update failure block an
+# otherwise installable ISO. The target still installs xpm from [x].
+installer_progress "Actualizando xpm live"
+update_live_xpm
 
 if [[ "$BACKEND" == "xpm" ]]; then
     installer_progress "Instalando paquetes base"
@@ -552,6 +560,8 @@ else
         fi
     fi
 fi
+
+network_persist_to_target "$MNT"
 
 installer_progress "Configuración base"
 # SDDM's X theme uses Hack Nerd Font. Prefer the signed x-scripts payload so
