@@ -11,6 +11,8 @@ if [[ "${X_SKIP_INSTALLER:-0}" == "1" ]]; then
 fi
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$DIR/ui.sh"
+source "$DIR/network.sh"
 
 if [[ "${X_DRY:-0}" == "1" ]]; then
     JSON="${X_INSTALL_JSON:-/tmp/x-install.json}"
@@ -20,5 +22,11 @@ if [[ "${X_DRY:-0}" == "1" ]]; then
 fi
 
 echo "== X Installer =="
+# Network is needed before the configurator so WiFi can be selected before any
+# destructive disk operation, and so the live xpm can be refreshed later.
+if ! network_setup; then
+    echo "installer: no network; connect Ethernet or WiFi and run xinstall again" >&2
+    exit 1
+fi
 bash "$DIR/configurator.sh" || exit 1
 bash "$DIR/install.sh"
