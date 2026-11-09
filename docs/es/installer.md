@@ -123,12 +123,13 @@ están.
    tmpfs.
 5. **Conjunto de paquetes**:
    - Conjunto base: `base base-devel linux linux-firmware sudo networkmanager
-     openssh git jq x-release x-wallpapers btrfs-progs xfetch-bin xtop-git kitty pipewire
+     openssh git jq x-release x-wallpapers btrfs-progs kitty pipewire
      pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm zsh`, más
      `grub efibootmgr` para
      GRUB y `cryptsetup` para LUKS. `btrfs-progs` lo requiere el motor de
-     generaciones; las herramientas de X (`xfetch`, `xtop`) y `zsh` se
-     instalan en todos los perfiles.
+     generaciones; `zsh` se instala en todos los perfiles.
+     Las herramientas de X (`xfetch-core-bin`, `xtop-bin`) se instalan después
+     desde AUR mediante `xpm-aur`.
    - Perfil `full`: añade todos los paquetes del manifiesto apuntado por
      `X_PKGLIST` (por defecto `/root/x-installer/packages.x86_64`).
    - Perfil `core`: añade solo `vim`.

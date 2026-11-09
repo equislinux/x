@@ -31,7 +31,7 @@ update_live_xpm() {
     hash -r
     if xpm --version >/dev/null 2>&1; then
         xpm --version | head -1
-        network_ui_ok "xpm live actualizado"
+        network_ui_ok "live xpm updated"
         [[ -n "$old" ]] && rm -f "$old"
         return 0
     fi

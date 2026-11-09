@@ -117,11 +117,12 @@ are required; the remaining keys have sensible defaults when absent.
    `/.snapshots` and `/var/lib/x`. `/tmp` is appended to the fstab as tmpfs.
 5. **Package set**:
    - Base set: `base base-devel linux linux-firmware sudo networkmanager
-     openssh git jq x-release x-wallpapers btrfs-progs xfetch-bin xtop-git kitty pipewire
+     openssh git jq x-release x-wallpapers btrfs-progs kitty pipewire
      pipewire-pulse pipewire-alsa wireplumber alsa-utils sddm zsh`, plus
      `grub efibootmgr` for GRUB and `cryptsetup` for LUKS. `btrfs-progs` is
-     required by the generations engine; the X tools (`xfetch`, `xtop`) and
-     `zsh` are installed in every profile.
+     required by the generations engine; `zsh` is installed in every profile.
+     The X tools (`xfetch-core-bin`, `xtop-bin`) are installed later from the
+     AUR through `xpm-aur`.
    - `full` profile: adds every package in the manifest pointed to by
      `X_PKGLIST` (default `/root/x-installer/packages.x86_64`).
    - `core` profile: adds only `vim`.
