@@ -123,9 +123,9 @@ installer_progress() {
         "$percent" "$label"
 }
 
-installer_progress "Red y conectividad"
+installer_progress "Network and connectivity"
 if ! network_setup; then
-    echo "installer: no se pudo configurar la red; se necesita conexión para instalar" >&2
+    echo "installer: could not configure the network; a connection is required to install" >&2
     exit 1
 fi
 PKGLIST="${X_PKGLIST:-/root/x-installer/packages.x86_64}"
@@ -369,7 +369,7 @@ else
     fi
 fi
 
-installer_progress "Comprobando red"
+installer_progress "Checking network"
 if ! network_online; then
     echo "installer: network disappeared after setup; aborting" >&2
     exit 1

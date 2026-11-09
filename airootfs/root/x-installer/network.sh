@@ -14,7 +14,7 @@ network_ui_err()  { if have_gum; then gum style --foreground 1 "✘ $*"; else pr
 
 network_start_manager() {
     if ! command -v nmcli >/dev/null 2>&1; then
-        network_ui_warn "NetworkManager no está disponible"
+        network_ui_warn "NetworkManager is not available"
         return 1
     fi
     systemctl start NetworkManager >/dev/null 2>&1 || true
@@ -54,14 +54,14 @@ network_connect_wifi() {
             :
         else
             output="$(tail -n 3 /tmp/x-wifi.log 2>/dev/null | tr '\n' ' ')"
-            network_ui_err "No se pudo conectar a '$ssid'${output:+: $output}"
+            network_ui_err "Could not connect to '$ssid'${output:+: $output}"
             rm -f /tmp/x-wifi.log
             return 1
         fi
     else
         if ! nmcli device wifi connect "$ssid" >/tmp/x-wifi.log 2>&1; then
             output="$(tail -n 3 /tmp/x-wifi.log 2>/dev/null | tr '\n' ' ')"
-            network_ui_err "No se pudo conectar a '$ssid'${output:+: $output}"
+            network_ui_err "Could not connect to '$ssid'${output:+: $output}"
             rm -f /tmp/x-wifi.log
             return 1
         fi
@@ -70,10 +70,10 @@ network_connect_wifi() {
     if network_wait_online 45; then
         X_WIFI_USED=1
         X_WIFI_CONNECTION="$ssid"
-        network_ui_ok "Conectado a '$ssid'"
+        network_ui_ok "Connected to '$ssid'"
         return 0
     fi
-    network_ui_err "WiFi conectado, pero sin acceso HTTPS"
+    network_ui_err "WiFi connected, but HTTPS is unreachable"
     return 1
 }
 
@@ -84,22 +84,22 @@ network_autoinstall() {
 network_setup() {
     echo "== network setup"
     if network_online; then
-        network_ui_ok "Red disponible por Ethernet"
+        network_ui_ok "Network available via Ethernet"
         return 0
     fi
     network_start_manager || true
     if network_wait_online 20; then
-        network_ui_ok "Red disponible por Ethernet"
+        network_ui_ok "Network available via Ethernet"
         return 0
     fi
 
     local ssid="${X_WIFI_SSID:-}" password="${X_WIFI_PASSWORD:-}"
     if [[ -n "$ssid" ]]; then
-        network_ui_warn "Conectando a WiFi configurado: $ssid"
+        network_ui_warn "Connecting to configured WiFi: $ssid"
         network_connect_wifi "$ssid" "$password" && return 0
     fi
     if network_autoinstall || [[ ! -t 0 ]]; then
-        network_ui_err "No hay red y no se puede pedir WiFi en modo desatendido"
+        network_ui_err "No network and cannot prompt for WiFi in unattended mode"
         return 1
     fi
 
@@ -107,24 +107,24 @@ network_setup() {
     for ((i = 0; i < 3; i++)); do
         mapfile -t networks < <(network_wifi_networks)
         if [[ "${#networks[@]}" -eq 0 ]]; then
-            network_ui_warn "No se detectan redes WiFi"
-            confirm_yes "¿Reintentar el escaneo?" y || break
+            network_ui_warn "No WiFi networks detected"
+            confirm_yes "Retry the scan?" y || break
             continue
         fi
-        networks+=("Introducir SSID manualmente")
-        select_one sel "Selecciona una red WiFi" "${networks[@]}"
-        [[ -n "$sel" ]] || { network_ui_warn "Selección cancelada"; return 1; }
-        if [[ "$sel" == "Introducir SSID manualmente" ]]; then
+        networks+=("Enter SSID manually")
+        select_one sel "Select a WiFi network" "${networks[@]}"
+        [[ -n "$sel" ]] || { network_ui_warn "Selection cancelled"; return 1; }
+        if [[ "$sel" == "Enter SSID manually" ]]; then
             ask_value sel "SSID"
             [[ -n "$sel" ]] || continue
         fi
-        ask_password password_try "Contraseña WiFi para $sel (vacía si es abierta)"
+        ask_password password_try "WiFi password for $sel (empty if open)"
         if network_connect_wifi "$sel" "$password_try"; then
             return 0
         fi
-        network_ui_warn "Prueba otra red o revisa la contraseña"
+        network_ui_warn "Try another network or check the password"
     done
-    network_ui_err "No se pudo establecer conexión de red"
+    network_ui_err "Could not establish a network connection"
     return 1
 }
 
