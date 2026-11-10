@@ -50,12 +50,14 @@ if [[ -f "$CIMNT/x-install.env" ]]; then
 fi
 
 dbg "unattended install from $DEV"
+export X_AUTO=1
 LOG=/tmp/x-install.log
 set +e
-X_INSTALL_JSON="$JSON" bash -x /root/x-installer/install.sh >"$LOG" 2>&1
-rc=$?
+# Stream the log to the service console (ttyS0) as the install progresses so a
+# hang is visible without waiting for the final cat.
+X_INSTALL_JSON="$JSON" bash -x /root/x-installer/install.sh 2>&1 | tee "$LOG"
+rc=${PIPESTATUS[0]}
 set -e
-cat "$LOG" >/dev/ttyS0 2>/dev/null || true
 dbg "install.sh rc=$rc"
 umount "$CIMNT"
 exit "$rc"

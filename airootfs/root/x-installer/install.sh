@@ -227,15 +227,20 @@ cleanup() {
     xpm_unbind_pseudo 2>/dev/null || true
     umount -R "$MNT" 2>/dev/null || umount -Rl "$MNT" 2>/dev/null || true
     if [[ -b /dev/mapper/xroot ]]; then
-        # udev can keep a transient reference right after unmounting: retry
-        # instead of leaving the mapping open (it would block a re-install).
-        local i
-        for i in 1 2 3 4 5; do
-            cryptsetup close xroot 2>/dev/null && break
-            sleep 1
-        done
-        if [[ -b /dev/mapper/xroot ]]; then
-            dmsetup remove xroot 2>/dev/null || true
+        if [[ "${X_AUTO:-0}" == "1" ]]; then
+            # The unattended live session powers off right after rc=0; closing
+            # the mapping here can block on udev/device references. The reboot
+            # releases it, so do not risk hanging the install.
+            :
+        else
+            # Interactive installs: never block on udev keeping a transient
+            # reference after unmounting. A deferred close returns immediately;
+            # dmsetup is the last resort for an already-unused mapping.
+            timeout -k 2 5 cryptsetup close --deferred xroot 2>/dev/null || true
+            timeout -k 2 5 cryptsetup close xroot 2>/dev/null || true
+            if [[ -b /dev/mapper/xroot ]]; then
+                dmsetup remove xroot 2>/dev/null || true
+            fi
         fi
     fi
     rm -f "${X_INSTALL_JSON:-/tmp/x-install.json}" 2>/dev/null || true

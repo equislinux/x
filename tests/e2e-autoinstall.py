@@ -640,12 +640,30 @@ class E2E:
                 raise E2EError(f"xpm diff current is not clean:\n{seg[-800:]}")
             log("xpm history/diff OK")
 
+            log("checking exact-name resolver and repo/name in the installed xpm")
+            seg = self.sudo_expect("xpm -S -p power-profiles-daemon", "E2E_PPD", 180)
+            if "power-profiles-daemon" not in seg or re.search(r"^tuned-ppd\b", seg, re.M):
+                raise E2EError(f"xpm resolved the wrong provider:\n{seg[-800:]}")
+            seg = self.sudo_expect("xpm -S -p extra/power-profiles-daemon", "E2E_PPD_REPO", 180)
+            if "power-profiles-daemon" not in seg:
+                raise E2EError(f"xpm repo/name failed:\n{seg[-800:]}")
+            log("xpm exact-name/repo-name OK")
+
         # Newest-wins: the post-transaction generation must be the default and
         # the next boot must actually land on it.
         ids = re.findall(r"^(\d{4})\b", seg_list, re.M)
         if not ids:
             raise E2EError(f"could not read the generation list:\n{seg_list[-600:]}")
         newest = max(ids)
+        expected_reason = "xpm" if self.args.backend == "xpm" else "pacman"
+        seg = self.sudo_expect(
+            f"cat /var/lib/x/generations/{newest}/manifest.json", "E2E_REASON", 60
+        )
+        if f'"reason": "{expected_reason}"' not in seg:
+            raise E2EError(
+                f"generation {newest} reason is not {expected_reason}:\n{seg[-600:]}"
+            )
+        log(f"generation reason OK: {newest} recorded because {expected_reason}")
         seg = self.sudo_expect("x gen status", "E2E_DEF1", 90)
         if not re.search(r"default:\s+" + newest, seg):
             raise E2EError(f"the newest generation {newest} is not the default:\n{seg[-600:]}")
