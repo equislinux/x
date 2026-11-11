@@ -840,6 +840,27 @@ if [[ -d /sys/firmware/efi ]] && command -v efibootmgr >/dev/null 2>&1; then
     fi
 fi
 
+# Never report a successful install whose ESP has no UEFI loader. grub-install
+# and bootctl can return 0 inside a chroot while writing nothing useful.
+if [[ -d /sys/firmware/efi ]]; then
+    if [[ "$BOOT" == "systemd-boot" ]]; then
+        if [[ ! -f "$MNT/boot/EFI/BOOT/BOOTX64.EFI" && ! -f "$MNT/boot/EFI/systemd/systemd-bootx64.efi" ]]; then
+            echo "installer: no UEFI loader found on the ESP ($MNT/boot)" >&2
+            exit 1
+        fi
+    elif [[ "$MODE" == "dualboot" ]]; then
+        if [[ ! -f "$MNT/boot/EFI/x/grubx64.efi" && ! -f "$MNT/boot/EFI/BOOT/BOOTX64.EFI" ]]; then
+            echo "installer: no GRUB EFI loader found on the ESP ($MNT/boot)" >&2
+            exit 1
+        fi
+    else
+        if [[ ! -f "$MNT/boot/EFI/BOOT/BOOTX64.EFI" ]]; then
+            echo "installer: no removable GRUB EFI loader found on the ESP ($MNT/boot)" >&2
+            exit 1
+        fi
+    fi
+fi
+
 # Dualboot: keep the Windows Boot Manager first in the firmware order while
 # still registering the X entry (best effort; requires efibootmgr).
 if [[ "$MODE" == "dualboot" ]]; then
