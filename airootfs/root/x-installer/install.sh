@@ -98,6 +98,18 @@ fi
 
 [[ "$(id -u)" -eq 0 ]] || { echo "installer: requires root" >&2; exit 1; }
 [[ -b "$DISK" ]] || { echo "installer: $DISK is not a block device" >&2; exit 1; }
+if [[ "$DISK" =~ ^/dev/(fd|sr|loop|zram|ram|dm-) ]]; then
+    echo "installer: $DISK is not an installable disk" >&2
+    exit 1
+fi
+LIVE_SRC="$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null || true)"
+if [[ -n "$LIVE_SRC" ]]; then
+    LIVE_DISK="$(lsblk -no PKNAME "$LIVE_SRC" 2>/dev/null | head -1 || true)"
+    if [[ -n "$LIVE_DISK" && "$DISK" == "/dev/$LIVE_DISK" ]]; then
+        echo "installer: $DISK contains the running live medium" >&2
+        exit 1
+    fi
+fi
 
 partdev() {
     local name="${1##*/}"
@@ -247,7 +259,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-installer_progress "Preparando disco y modo de instalación"
+installer_progress "Preparing disk and install mode"
 echo "== install backend: $BACKEND"
 echo "== partitioning $DISK (mode: $MODE)"
 if [[ "$MODE" == "dualboot" ]]; then
@@ -388,7 +400,7 @@ echo "network available"
 #     and locally sign the key here (idempotent; x-keyring.service also does
 #     it at boot).
 #   - target: prepared here so the installed system trusts [x] (Required).
-installer_progress "Preparando keyring"
+installer_progress "Preparing keyring"
 echo "== keyring (live + target)"
 # Idempotent: pacman-init.service usually did this at boot, but autoinstall can
 # race with it, so make sure the live keyring exists and has the Arch keys
@@ -421,11 +433,11 @@ install -Dm644 "$LIVE_KEY" "$MNT/etc/pacman.d/x-repo.pub"
 
 # Keep the live bootstrap current, but never let an update failure block an
 # otherwise installable ISO. The target still installs xpm from [x].
-installer_progress "Actualizando xpm live"
+installer_progress "Updating live xpm"
 update_live_xpm
 
 if [[ "$BACKEND" == "xpm" ]]; then
-    installer_progress "Instalando paquetes base"
+    installer_progress "Installing base packages"
 echo "== xpm target bootstrap"
     xpm_check_backend
     XPM_CACHE="${X_XPM_CACHE:-$MNT/var/cache/xpm/pkg}"
@@ -568,7 +580,7 @@ fi
 
 network_persist_to_target "$MNT"
 
-installer_progress "Configuración base"
+installer_progress "Base configuration"
 # SDDM's X theme uses Hack Nerd Font. Prefer the signed x-scripts payload so
 # future font/theme changes do not require an ISO rebuild; keep an inline
 # fallback for older x-scripts payloads. Failure is non-fatal.
@@ -616,7 +628,7 @@ Server = https://equislinux.github.io/x-repo/repo/x86_64
 EOF
 fi
 
-installer_progress "Usuario y herramientas AUR"
+installer_progress "User and AUR tools"
 echo "== user"
 arch-chroot "$MNT" useradd -m -G wheel -s /usr/bin/zsh "$USER"
 # The zsh package owns /usr/bin/zsh and registers it in /etc/shells. Fail
@@ -652,7 +664,7 @@ arch-chroot "$MNT" runuser -u "$USER" -- \
     xpm-aur -S --aur --needed --noconfirm "$AUR_XFETCH" "$AUR_XTOP"
 rm -f "$MNT/etc/sudoers.d/x-aur-install"
 
-installer_progress "Provisionando x-scripts"
+installer_progress "Provisioning x-scripts"
 echo "== provisioning (x-scripts)"
 arch-chroot "$MNT" env X_HW_AUTO=0 X_GEN_SKIP=1 x setup
 arch-chroot "$MNT" runuser -u "$USER" -- env X_HYPRLAND=0 X_HW_AUTO=0 /usr/bin/x setup --user
@@ -675,7 +687,7 @@ if [[ "$VIRT" == "yes" ]]; then
     fi
 fi
 
-installer_progress "Instalando escritorio"
+installer_progress "Installing desktop"
 if [[ "$DESKTOP" == "hyprland" ]]; then
     echo "== installing the Hyprland/equisdots desktop (as user, with temporary passwordless sudo)"
     cat > "$MNT/etc/sudoers.d/x-hypr-install" <<'EOF'
@@ -760,7 +772,7 @@ if [[ -x "$MNT/usr/bin/x-release-apply" ]]; then
     arch-chroot "$MNT" /usr/bin/x-release-apply || true
 fi
 
-installer_progress "Instalando bootloader"
+installer_progress "Installing bootloader"
 echo "== bootloader ($BOOT)"
 if [[ "$BOOT" == "systemd-boot" ]]; then
     # bootctl also writes the fallback \EFI\BOOT\BOOTX64.EFI; in dualboot that
@@ -852,7 +864,7 @@ fi
 
 # First generation: snapshot of the installed system + manifest (base for
 # rollbacks and granular restores; see scripts/docs/en/generations.md).
-installer_progress "Creando primera generación"
+installer_progress "Creating first generation"
 echo "== first generation"
 if arch-chroot "$MNT" test -x /usr/bin/x; then
     arch-chroot "$MNT" env X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ \
