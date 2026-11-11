@@ -14,8 +14,22 @@ valid_hostname() { [[ "$1" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]]; }
 valid_user() { [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
 valid_secret() { ! [[ "$1" =~ [\"\\] ]]; }
 
-# Disk list (block devices of type disk).
-mapfile -t DISKS < <(lsblk -dno NAME,SIZE,TYPE 2>/dev/null | awk '$3=="disk" {print "/dev/"$1" ("$2")"}')
+# Disk list (real install targets only). Floppies, optical drives, loop and
+# memory devices are never installable, and the live medium must not be
+# offered: selecting it would erase the installer itself.
+LIVE_SRC="$(findmnt -no SOURCE /run/archiso/bootmnt 2>/dev/null || true)"
+LIVE_DISK=""
+if [[ -n "$LIVE_SRC" ]]; then
+    LIVE_DISK="$(lsblk -no PKNAME "$LIVE_SRC" 2>/dev/null | head -1 || true)"
+fi
+mapfile -t DISKS < <(
+    lsblk -dno NAME,SIZE,TYPE 2>/dev/null | awk -v live="$LIVE_DISK" '
+        $3 == "disk" &&
+        $1 !~ /^(fd|sr|loop|zram|ram|dm-)/ &&
+        (live == "" || $1 != live) {
+            print "/dev/" $1 " (" $2 ")"
+        }'
+)
 
 DISK=""
 while [[ -z "$DISK" ]]; do

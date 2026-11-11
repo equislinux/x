@@ -61,9 +61,9 @@ confirm_yes() {
     else
         local resp label
         if [[ "$default" == "y" ]]; then
-            label="S/n"
+            label="Y/n"
         else
-            label="s/N"
+            label="y/N"
         fi
         printf '%s [%s]: ' "$prompt" "$label"
         IFS= read -r resp
