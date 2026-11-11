@@ -482,6 +482,7 @@ class E2E:
             log("checking the xpm backend (packages, DB parity, boot files)")
             self.expect_ok("command -v xpm")
             self.expect_ok("pacman -Qq xpm")
+            self.expect_ok("xpm -Q xpm | grep -q '0.1.0-29'")
             for pkg in ("base", self.args.kernel, "mkinitcpio", "xpm"):
                 self.expect_ok(f"xpm query | awk '{{print $1}}' | grep -qx {pkg}")
             self.expect_ok(
@@ -533,6 +534,7 @@ class E2E:
             self.expect_ok(f"test -d /home/{user}/.config/hypr/scripts/quickshell")
             self.expect_ok(f"test -x /home/{user}/.local/bin/dots")
             self.expect_ok("pacman -Qq quickshell-git")
+            self.expect_ok("pacman -Qq networkmanager-dmenu-git")
             self.expect_ok("pacman -Qq swayosd-git")
             self.expect_ok("pacman -Qq bibata-cursor-theme")
             self.expect_ok("pacman -Qq mpvpaper")
