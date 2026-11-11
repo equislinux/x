@@ -10,6 +10,15 @@ source "$(dirname "${BASH_SOURCE[0]}")/ui.sh"
 OUT="${X_CONFIG_OUT:-/tmp/x-install.json}"
 DRY="${X_DRY:-0}"
 
+# Optional kernel parameters (automation/headless installs, e.g.
+# console=ttyS0). Kept out of the interactive prompts; install.sh validates
+# the value again before using it.
+KERNEL_PARAMS="${X_INSTALL_KERNEL_PARAMS:-}"
+if [[ -n "$KERNEL_PARAMS" && ! "$KERNEL_PARAMS" =~ ^[A-Za-z0-9_=.,:/@%+-]+([[:space:]][A-Za-z0-9_=.,:/@%+-]+)*$ ]]; then
+    echo "configurator: invalid X_INSTALL_KERNEL_PARAMS" >&2
+    exit 1
+fi
+
 valid_hostname() { [[ "$1" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{0,62}$ ]]; }
 valid_user() { [[ "$1" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]]; }
 valid_secret() { ! [[ "$1" =~ [\"\\] ]]; }
@@ -179,8 +188,8 @@ VIRT="no"
 confirm_yes "Install the virtualization stack (QEMU/KVM + libvirt + virt-manager GUI)?" n && VIRT="yes"
 
 if [[ "$DRY" == "1" ]]; then
-    printf '{"disk":"%s","mode":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","kernel":"%s","encryption":"%s","hyprland":"%s","desktop":"%s","agents":"%s","virtualization":"%s"}\n' \
-        "$DISK" "$MODE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$KERNEL" "$ENC" "$HYPR" "$DESKTOP" "$AGENTS" "$VIRT"
+    printf '{"disk":"%s","mode":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","kernel":"%s","kernel_params":"%s","encryption":"%s","hyprland":"%s","desktop":"%s","agents":"%s","virtualization":"%s"}\n' \
+        "$DISK" "$MODE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$KERNEL" "$KERNEL_PARAMS" "$ENC" "$HYPR" "$DESKTOP" "$AGENTS" "$VIRT"
     exit 0
 fi
 
@@ -197,7 +206,7 @@ else
 fi
 
 cat > "$OUT" <<EOF
-{"disk":"$DISK","mode":"$MODE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","backend":"$BACKEND","bootloader":"$BOOT","kernel":"$KERNEL","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","desktop":"$DESKTOP","agents":"$AGENTS","virtualization":"$VIRT"}
+{"disk":"$DISK","mode":"$MODE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","backend":"$BACKEND","bootloader":"$BOOT","kernel":"$KERNEL","kernel_params":"$KERNEL_PARAMS","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","desktop":"$DESKTOP","agents":"$AGENTS","virtualization":"$VIRT"}
 EOF
 chmod 600 "$OUT"
 echo "configuration written to $OUT"
