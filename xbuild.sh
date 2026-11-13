@@ -21,10 +21,15 @@ fi
 # 2) Clean work/ and out/
 sudo rm -rf work out
 
-# 3) Verbose build with explicit paths
+# 3) Bundle the signed X kernels in the live installer payload
+if [[ -x ./tools/sync-x-kernels.sh ]]; then
+  ./tools/sync-x-kernels.sh
+fi
+
+# 4) Verbose build with explicit paths
 sudo mkarchiso -C pacman.conf -v -w ./work -o ./out . 2>&1 | tee "$LOG"
 
-# 4) Verify the ISO and print a clear message
+# 5) Verify the ISO and print a clear message
 ISO_COUNT=$(find ./out -maxdepth 2 -type f -name '*.iso' | wc -l)
 if [[ "$ISO_COUNT" -gt 0 ]]; then
   echo "ISO created:"

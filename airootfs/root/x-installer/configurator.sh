@@ -132,13 +132,21 @@ BOOT=""
 select_one BOOT "Bootloader" "GRUB (BIOS + UEFI)" "systemd-boot (UEFI only)"
 [[ "$BOOT" == "systemd-boot (UEFI only)" ]] && BOOT="systemd-boot" || BOOT="grub"
 
-# Kernel.
+# Kernel. Arch kernels are unchanged; the X kernels are optional additions
+# installed from the signed SourceForge repositories.
 KERNEL=""
-select_one KERNEL "Kernel" "linux (stable)" "linux-lts (longterm)" "linux-zen (desktop)"
+select_one KERNEL "Kernel" \
+    "linux (Arch stable)" \
+    "linux-lts (Arch longterm)" \
+    "linux-zen (Arch desktop)" \
+    "linux-x (X stable)" \
+    "linux-x-mainline (X mainline)"
 case "$KERNEL" in
-    "linux-lts (longterm)") KERNEL="linux-lts" ;;
-    "linux-zen (desktop)")  KERNEL="linux-zen" ;;
-    *)                      KERNEL="linux" ;;
+    "linux-lts (Arch longterm)")   KERNEL="linux-lts" ;;
+    "linux-zen (Arch desktop)")    KERNEL="linux-zen" ;;
+    "linux-x (X stable)")          KERNEL="linux-x" ;;
+    "linux-x-mainline (X mainline)") KERNEL="linux-x-mainline" ;;
+    *)                             KERNEL="linux" ;;
 esac
 
 # Root encryption (LUKS).

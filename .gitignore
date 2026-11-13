@@ -95,6 +95,9 @@ desktop.ini
 !Makefile
 !Dockerfile
 
+# ── Paquetes de kernel inyectados en el ISO ─────
+airootfs/root/x-installer/kernel-packages/
+airootfs/root/x-installer/kernel-packages/*
+
 # ────────────────────────────────────────────────
 # Fin del archivo
-# ────────────────────────────────────────────────
