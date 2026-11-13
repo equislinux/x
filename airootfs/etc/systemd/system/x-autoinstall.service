@@ -1,7 +1,7 @@
 [Unit]
 Description=x unattended installer (cidata)
 ConditionPathExists=/root/x-installer/autoinstall.sh
-After=systemd-udevd.service pacman-init.service x-keyring.service
+After=systemd-udevd.service x-keyring.service
 Wants=x-keyring.service
 
 [Service]

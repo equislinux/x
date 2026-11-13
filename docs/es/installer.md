@@ -69,6 +69,7 @@ cae a prompts de texto plano en caso contrario (`ui.sh`).
 | Nombre de usuario | texto libre | `username` |
 | Password del usuario | texto libre (repetido) | `password` |
 | Perfil de paquetes | `Full (all packages)` / `Core (minimal system)` | `profile` (`full`/`core`) |
+| Backend de paquetes | `pacman (stable, production)` / `xpm (native X)` | `backend` (`pacman`/`xpm`) |
 | Gestor de arranque | `GRUB (BIOS + UEFI)` / `systemd-boot (UEFI only)` | `bootloader` (`grub`/`systemd-boot`) |
 | Kernel | `linux (Arch stable)` / `linux-lts (Arch longterm)` / `linux-zen (Arch desktop)` / `linux-x (X stable)` / `linux-x-mainline (X mainline)` | `kernel` (`linux`/`linux-lts`/`linux-zen`/`linux-x`/`linux-x-mainline`; `linux-hardened`, `linux-rt`, `linux-rt-lts` aceptados vía JSON) |
 | Cifrado de raíz (LUKS) | sí/no | `encryption` (`yes`/`no`) |
@@ -77,7 +78,7 @@ cae a prompts de texto plano en caso contrario (`ui.sh`).
 | Instalar los agentes IA de Xscriptor | sí/no (requiere red) | `agents` (`yes`/`no`) |
 | Instalar virtualización | sí/no (QEMU/KVM + libvirt + GUI virt-manager) | `virtualization` (`yes`/`no`) |
 
-Las opciones `linux-x` y `linux-x-mainline` son kernels adicionales, no sustitutos. Sus paquetes firmados van incluidos en la ISO y se instalan con `pacman -U`; los kernels Arch siguen viniendo de los repositorios online.
+Las opciones `linux-x` y `linux-x-mainline` son kernels adicionales, no sustitutos. Sus paquetes firmados van incluidos en la ISO. El backend xpm verifica sus firmas detached con gpg contra el keyring nativo `/etc/xpm/gnupg` y los instala con `xpm install <paquete-local>`; el backend pacman usa `pacman -U`. Los kernels Arch siguen viniendo de los repositorios online.
 
 Mapeo idioma a locale que usa el configurador:
 
@@ -138,23 +139,28 @@ están.
    - El perfil `full` con el escritorio Hyprland compila paquetes de AUR
      (`quickshell-git`, `swayosd-git`, ...): dale al instalador **≥6 GB de
      RAM**; en máquinas con poca memoria limita los jobs de build.
-6. **Preparar los keyrings** y **esperar a la red** (DNS contra
-   `geo.mirror.pkgbuild.com`, hasta ~120 s). Después `pacstrap /mnt <pkgs>`
-   desde los mirrors oficiales más el repositorio `[x]` firmado (`Required`).
-   - Live: se agrega y firma localmente `/etc/pacman.d/x-repo.pub`
-     (`pacman-key --init/--populate archlinux/--add/--lsign-key`). Lo
-     re-aplica al boot `x-keyring.service` porque `pacman-init.service`
-     recrea `/etc/pacman.d/gnupg` en tmpfs; `install.sh` lo repite de forma
-     idempotente antes de `pacstrap` (que verifica contra el keyring live).
-   - Destino: `pacman-key --gpgdir /mnt/etc/pacman.d/gnupg --init`,
-     `--populate archlinux`, agregar y firmar localmente la misma clave.
+6. **Preparar el keyring del backend** y **esperar a la red** (DNS contra
+   `geo.mirror.pkgbuild.com`, hasta ~120 s).
+   - **Backend xpm**: se prepara un keyring GnuPG nativo en `/etc/xpm/gnupg`
+     (live y destino) desde `/usr/share/pacman/keyrings/archlinux.gpg` y
+     `/etc/pacman.d/x-repo.pub`. No se usa `pacman-key`. `x-keyring.service`
+     prepara el keyring live al arrancar e `install.sh` repite la importación
+     de forma idempotente para live y destino. xpm verifica las firmas de
+     `[x]`, Arch y los kernels incluidos contra ese keyring. El conjunto base
+     se instala enteramente con xpm; `archlinux-keyring` se preinstala con
+     `--scriptlets=skip` para que su `post_install` no invoque `pacman-key`.
+   - **Backend pacman** (seleccionado explícitamente): los keyrings pacman live
+     y destino se inicializan con `pacman-key --init/--populate archlinux`,
+     después se agrega y firma localmente la clave `[x]`; `pacstrap /mnt <pkgs>`
+     instala desde los mirrors oficiales más `[x]`.
 7. **Instalar `x-scripts` offline**: el payload
-   `packages/x-scripts-*.pkg.tar.zst` presente en el entorno en vivo se copia
-   al destino y se instala con `pacman -U` dentro del chroot.
+   `packages/x-scripts-*.pkg.tar.zst` se instala con xpm local-package install
+   en el backend xpm y con `pacman -U` en el backend pacman.
 8. **Configuración base**: `genfstab`, enlace simbólico de la zona horaria,
    `locale.gen` + `/etc/locale.conf`, `KEYMAP` en `/etc/vconsole.conf`,
-   hostname, copia del mirrorlist funcional y anexado del repositorio `[x]` al
-   `pacman.conf` del destino si no existe.
+   hostname. En el backend pacman se copia el mirrorlist funcional y se anexa
+   `[x]` al `pacman.conf` del destino; el backend xpm no escribe configuración
+   de pacman.
 9. **Usuario**: crear el usuario (miembro de `wheel`, shell de login `zsh`),
    fijar la password con `chpasswd` y habilitar `%wheel` en `sudoers`.
 10. **Aprovisionamiento** con la CLI `x` del paquete `x-scripts`:
@@ -385,9 +391,10 @@ hacer lugar queda fuera de alcance (el espacio libre ya tiene que existir).
 
 ## Requisitos y advertencias
 
-- La instalación requiere **acceso a red**: `pacstrap` descarga desde los
-  mirrors oficiales de Arch y el repositorio `[x]`. Un mirror offline incluido
-  en el ISO está pendiente (consulta la ROADMAP del workspace).
+- La instalación requiere **acceso a red**: el backend seleccionado descarga
+  desde los mirrors oficiales de Arch y el repositorio `[x]` firmado
+  (`xpm sync/install` o `pacstrap`). Un mirror offline incluido en el ISO está
+  pendiente (consulta la ROADMAP del workspace).
 - El disco de destino se borra por completo.
 - `systemd-boot` es **solo UEFI**; GRUB escribe tanto la ruta BIOS (con la
   partición `bios_grub`) como la UEFI (removable), de modo que cualquiera de

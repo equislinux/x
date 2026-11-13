@@ -89,10 +89,10 @@ Tanto `work/` como `out/` se recrean en cada construcción y están en
 
   El *host de build* usa `Never` (puede no tener la clave del proyecto). El
   **ISO live y el destino instalado** usan `SigLevel = Required`: la clave
-  pública viaja en `/etc/pacman.d/x-repo.pub`; en el entorno en vivo
-  `pacman-init.service` recrea el keyring en tmpfs y `x-keyring.service`
-  importa y firma localmente la clave del proyecto, mientras que `install.sh`
-  prepara el keyring del destino de la misma forma.
+  pública viaja en `/etc/pacman.d/x-repo.pub`. El backend xpm importa las
+  claves de Arch y X en el keyring nativo `/etc/xpm/gnupg` al arrancar y durante
+  la instalación; el backend pacman inicializa su propio keyring solo después
+  de que el usuario lo selecciona.
 - El *payload* de aprovisionamiento (`x-scripts`) se incluye **offline**
   dentro del ISO en `airootfs/root/x-installer/packages/x-scripts-*.pkg.tar.zst`,
   de modo que el instalador no necesita descargarlo de la red durante la

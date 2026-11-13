@@ -1,16 +1,40 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Trust the X repository key in the running keyring.
-# The live environment mounts a tmpfs over /etc/pacman.d/gnupg and
-# pacman-init.service recreates the keyring at boot, so the baked copy is not
-# enough: x-keyring.service runs this after pacman-init (and install.sh calls
-# the same steps before pacstrap).
+# Prepare the native xpm GnuPG keyring (no pacman tools).
+# The live service and install.sh both call this idempotently. Set XPM_GPGDIR
+# to prepare the target keyring instead of the live one.
+GPGDIR="${XPM_GPGDIR:-/etc/xpm/gnupg}"
+ARCH_KEY=/usr/share/pacman/keyrings/archlinux.gpg
+ARCH_TRUST=/usr/share/pacman/keyrings/archlinux-trusted
+X_KEY=/etc/pacman.d/x-repo.pub
 
-KEY=/etc/pacman.d/x-repo.pub
-[[ -f "$KEY" ]] || { echo "x-repo-key: $KEY is missing" >&2; exit 0; }
+for key in "$ARCH_KEY" "$X_KEY"; do
+    [[ -f "$key" ]] || { echo "x-repo-key: $key is missing" >&2; exit 1; }
+done
 
-pacman-key --add "$KEY"
-FPR="$(LC_ALL=C gpg --with-colons --show-keys "$KEY" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')"
-[[ -n "$FPR" ]] || { echo "x-repo-key: cannot resolve the key fingerprint" >&2; exit 1; }
-pacman-key --lsign-key "$FPR"
+install -d -m 700 "$GPGDIR"
+if command -v flock >/dev/null 2>&1; then
+    exec 9>"${XPM_KEYRING_LOCK:-/run/xpm-keyring.lock}"
+    flock 9
+fi
+
+if ! gpg --batch --homedir "$GPGDIR" --import "$ARCH_KEY" "$X_KEY" >/dev/null 2>&1; then
+    echo "x-repo-key: could not import the Arch/X keys into $GPGDIR" >&2
+    exit 1
+fi
+if [[ -f "$ARCH_TRUST" ]]; then
+    gpg --batch --homedir "$GPGDIR" --import-ownertrust "$ARCH_TRUST" >/dev/null 2>&1 || true
+fi
+
+X_FPR="$(LC_ALL=C gpg --with-colons --show-keys "$X_KEY" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')"
+if [[ -z "$X_FPR" ]]; then
+    echo "x-repo-key: cannot resolve the [x] key fingerprint" >&2
+    exit 1
+fi
+printf '%s:6:\n' "$X_FPR" | gpg --batch --homedir "$GPGDIR" --import-ownertrust >/dev/null 2>&1 || true
+gpg --batch --homedir "$GPGDIR" --check-trustdb >/dev/null 2>&1 || true
+if ! gpg --batch --homedir "$GPGDIR" --list-keys "$X_FPR" >/dev/null 2>&1; then
+    echo "x-repo-key: the [x] key is not present in $GPGDIR" >&2
+    exit 1
+fi

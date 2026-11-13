@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# X installer: partitions, pacstrap, configures, provisions, installs the
-# bootloader in chroot.
+# X installer: partitions, installs packages with xpm or pacstrap, configures,
+# provisions and installs the bootloader in chroot.
 #   X_INSTALL_JSON  config path (default /tmp/x-install.json)
 #   X_DRY=1         validate and print the plan only (tests)
 
@@ -151,29 +151,21 @@ XPM_PSEUDO_MOUNTED=0
 xpm_write_config() {
     local file="$1" root="$2" cache="$3"
     local prefix="${root%/}"
-    local url
-    local servers=()
-    while IFS= read -r url; do
-        if [[ -n "$url" ]]; then
-            servers+=("$url")
-        fi
-    done < <(sed -n 's/^[[:space:]]*Server[[:space:]]*=[[:space:]]*//p' /etc/pacman.d/mirrorlist 2>/dev/null | sed 's/[[:space:]]*$//')
-    if [[ "${#servers[@]}" -eq 0 ]]; then
-        servers=('https://geo.mirror.pkgbuild.com/$repo/os/$arch')
-    fi
+    local mirror="${X_XPM_ARCH_MIRROR:-https://geo.mirror.pkgbuild.com/\$repo/os/\$arch}"
     {
         printf '[options]\n'
         printf 'root_dir = "%s"\n' "$root"
         printf 'db_path = "%s/var/lib/xpm"\n' "$prefix"
         printf 'cache_dir = "%s"\n' "$cache"
         printf 'log_file = "%s/var/log/xpm.log"\n' "$prefix"
-        printf 'gpg_dir = "%s/etc/pacman.d/gnupg"\n' "$prefix"
-        printf 'pacman_db = "%s/var/lib/pacman"\n' "$prefix"
-        printf 'mirror_pacman = true\n'
+        printf 'gpg_dir = "%s/etc/xpm/gnupg"\n' "$prefix"
+        printf 'mirror_pacman = false\n'
         printf 'shell_integration = false\n'
         printf 'sig_level = "required"\n'
         printf 'database_sig_level = "optional"\n'
         printf 'architecture = "x86_64"\n'
+        printf 'color = false\n'
+        printf 'parallel_downloads = 5\n'
         printf '\n[[repo]]\n'
         printf 'name = "x"\n'
         printf 'server = ["%s"]\n' "${X_XPM_X_REPO:-https://equislinux.github.io/x-repo/repo/x86_64}"
@@ -183,11 +175,7 @@ xpm_write_config() {
         for repo in core extra; do
             printf '\n[[repo]]\n'
             printf 'name = "%s"\n' "$repo"
-            printf 'server = [\n'
-            for url in "${servers[@]}"; do
-                printf '  "%s",\n' "$url"
-            done
-            printf ']\n'
+            printf 'server = ["%s"]\n' "$mirror"
             printf 'sig_level = "required"\n'
             printf 'database_sig_level = "optional"\n'
         done
@@ -225,20 +213,94 @@ xpm_check_backend() {
     fi
     local help
     help="$(xpm --help 2>&1 || true)"
-    if ! grep -q -- '--scriptlets' <<<"$help" || ! grep -q -- '--no-shell-integration' <<<"$help"; then
-        echo "installer: the live xpm predates the target-install backend (missing --scriptlets/--no-shell-integration); release the post-parity xpm or use X_INSTALL_BACKEND=pacman" >&2
+    if ! grep -q -- '--scriptlets' <<<"$help" \
+        || ! grep -q -- '--no-shell-integration' <<<"$help" \
+        || ! grep -q -- '--no-alpm-hooks' <<<"$help"; then
+        echo "installer: the live xpm lacks the native backend (--scriptlets/--no-shell-integration/--no-alpm-hooks); refusing to fall back to pacman" >&2
         return 1
     fi
-    if ! xpm sync-pacman-db --help >/dev/null 2>&1 \
-        || ! xpm diff --help >/dev/null 2>&1 \
+    if ! xpm diff --help >/dev/null 2>&1 \
         || ! xpm history --help >/dev/null 2>&1 \
         || ! xpm query --help >/dev/null 2>&1; then
-        echo "installer: the live xpm lacks query/diff/history/sync-pacman-db; release the post-parity xpm or use X_INSTALL_BACKEND=pacman" >&2
+        echo "installer: the live xpm lacks query/diff/history; refusing to fall back to pacman" >&2
         return 1
     fi
 }
 
-install_local_x_kernel() {
+xpm_check_target_backend() {
+    local help
+    help="$(arch-chroot "$MNT" xpm --help 2>&1 || true)"
+    if ! grep -q -- '--no-alpm-hooks' <<<"$help"; then
+        echo "installer: the installed xpm lacks --no-alpm-hooks; publish the native xpm before using X_INSTALL_BACKEND=xpm" >&2
+        return 1
+    fi
+}
+
+xpm_prepare_keyring() {
+    local dir="$1"
+    XPM_GPGDIR="$dir" /usr/local/bin/x-repo-key
+}
+
+# xpm installs the kernel files under /usr/lib/modules, but mkinitcpio needs
+# the /boot/vmlinuz-* copy and preset that the mkinitcpio ALPM hook normally
+# creates. The xpm path deliberately disables ALPM hooks, so do it explicitly.
+xpm_install_local_kernel_boot() {
+    local pkgbase="$1" kver
+    kver="$(arch-chroot "$MNT" bash -c '
+        for f in /usr/lib/modules/*/pkgbase; do
+            [ -f "$f" ] || continue
+            if [ "$(cat "$f")" = "$1" ]; then
+                basename "${f%/pkgbase}"
+            fi
+        done
+    ' _ "$pkgbase" | head -1)"
+    if [[ -z "$kver" ]]; then
+        echo "installer: could not find the $pkgbase module tree in the target" >&2
+        exit 1
+    fi
+    arch-chroot "$MNT" install -Dm644 \
+        "/usr/lib/modules/$kver/vmlinuz" "/boot/vmlinuz-$pkgbase"
+    arch-chroot "$MNT" bash -c '
+        set -e
+        preset="/etc/mkinitcpio.d/$1.preset"
+        if [ ! -f "$preset" ]; then
+            install -d /etc/mkinitcpio.d
+            sed "s|%PKGBASE%|$1|g" /usr/share/mkinitcpio/hook.preset > "$preset"
+        fi
+    ' _ "$pkgbase"
+    arch-chroot "$MNT" depmod -a
+    arch-chroot "$MNT" mkinitcpio -P
+    local image
+    for image in "/boot/vmlinuz-$pkgbase" "/boot/initramfs-$pkgbase.img"; do
+        if ! arch-chroot "$MNT" test -f "$image"; then
+            echo "installer: $image is missing after the xpm kernel install" >&2
+            exit 1
+        fi
+    done
+}
+
+install_local_x_kernel_xpm() {
+    [[ "$KERNEL_LOCAL" == "1" ]] || return 0
+    local dir=/root/x-installer/kernel-packages main headers
+    local gpgdir="$MNT/etc/xpm/gnupg"
+    main="$(find "$dir" -maxdepth 1 -type f -name "$KERNEL-[0-9]*.pkg.tar.zst" -print -quit 2>/dev/null || true)"
+    headers="$(find "$dir" -maxdepth 1 -type f -name "$KERNEL-headers-[0-9]*.pkg.tar.zst" -print -quit 2>/dev/null || true)"
+    if [[ -z "$main" || -z "$headers" ]]; then
+        echo "installer: local $KERNEL packages are missing from the ISO ($dir)" >&2
+        exit 1
+    fi
+    if [[ ! -f "$main.sig" || ! -f "$headers.sig" ]]; then
+        echo "installer: local $KERNEL signatures are missing from the ISO ($dir)" >&2
+        exit 1
+    fi
+    gpg --batch --homedir "$gpgdir" --verify "$main.sig" "$main" >/dev/null
+    gpg --batch --homedir "$gpgdir" --verify "$headers.sig" "$headers" >/dev/null
+    echo "== installing $KERNEL from the bundled ISO packages (xpm)"
+    "${XPM[@]}" --scriptlets=auto --no-confirm install --needed "$main" "$headers"
+    xpm_install_local_kernel_boot "$KERNEL"
+}
+
+install_local_x_kernel_pacman() {
     [[ "$KERNEL_LOCAL" == "1" ]] || return 0
     local dir=/root/x-installer/kernel-packages main headers
     main="$(find "$dir" -maxdepth 1 -type f -name "$KERNEL-[0-9]*.pkg.tar.zst" -print -quit 2>/dev/null || true)"
@@ -247,11 +309,9 @@ install_local_x_kernel() {
         echo "installer: local $KERNEL packages are missing from the ISO ($dir)" >&2
         exit 1
     fi
-    echo "== installing $KERNEL from the bundled ISO packages"
-    # pacman -U still loads the enabled repos. On the xpm path the target
-    # mirrorlist has not been copied yet, so pacman would fail with
-    # "no servers configured for repository: extra" before installing the
-    # local kernel. Seed it from the live environment first.
+    echo "== installing $KERNEL from the bundled ISO packages (pacman)"
+    # pacman -U loads the enabled repos. On the pacman path the target
+    # mirrorlist has not been copied yet, so seed it from the live environment.
     if [[ -f /etc/pacman.d/mirrorlist ]]; then
         install -Dm644 /etc/pacman.d/mirrorlist "$MNT/etc/pacman.d/mirrorlist"
     fi
@@ -261,9 +321,6 @@ install_local_x_kernel() {
     rm -f "$MNT/root/$(basename "$main")" "$MNT/root/$(basename "$headers")"
     arch-chroot "$MNT" depmod -a || true
     arch-chroot "$MNT" mkinitcpio -P || true
-    if [[ "$BACKEND" == "xpm" ]]; then
-        arch-chroot "$MNT" xpm import-pacman --force >/dev/null 2>&1 || true
-    fi
 }
 
 cleanup() {
@@ -427,71 +484,74 @@ if ! network_online; then
 fi
 echo "network available"
 
-# Keyrings. The published [x] database is signed, so pacman needs the project
-# key. Two targets:
-#   - live: pacman-init.service recreates /etc/pacman.d/gnupg at boot (tmpfs),
-#     and pacstrap verifies the [x] database with the live keyring -> re-add
-#     and locally sign the key here (idempotent; x-keyring.service also does
-#     it at boot).
-#   - target: prepared here so the installed system trusts [x] (Required).
+# Keyrings are backend-specific. The xpm path uses a native GnuPG keyring under
+# /etc/xpm/gnupg and never calls pacman-key. The pacman path initializes its own
+# keyring after the user has explicitly selected that backend.
 installer_progress "Preparing keyring"
-echo "== keyring (live + target)"
-# Idempotent: pacman-init.service usually did this at boot, but autoinstall can
-# race with it, so make sure the live keyring exists and has the Arch keys
-# (pacstrap verifies core/extra and [x] against the live keyring).
-pacman-key --init
-pacman-key --populate archlinux
-LIVE_KEY=/etc/pacman.d/x-repo.pub
-if [[ -f "$LIVE_KEY" ]]; then
-    pacman-key --add "$LIVE_KEY"
-    X_KEY_FPR="$(LC_ALL=C gpg --with-colons --show-keys "$LIVE_KEY" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')"
-    if [[ -n "$X_KEY_FPR" ]]; then
-        pacman-key --lsign-key "$X_KEY_FPR"
+if [[ "$BACKEND" == "xpm" ]]; then
+    echo "== native xpm keyring (live + target)"
+    xpm_check_backend
+    xpm_prepare_keyring /etc/xpm/gnupg
+    xpm_prepare_keyring "$MNT/etc/xpm/gnupg"
+else
+    echo "== pacman keyring (live + target)"
+    pacman-key --init
+    pacman-key --populate archlinux
+    LIVE_KEY=/etc/pacman.d/x-repo.pub
+    if [[ -f "$LIVE_KEY" ]]; then
+        pacman-key --add "$LIVE_KEY"
+        X_KEY_FPR="$(LC_ALL=C gpg --with-colons --show-keys "$LIVE_KEY" 2>/dev/null | awk -F: '/^fpr:/{print $10; exit}')"
+        if [[ -n "$X_KEY_FPR" ]]; then
+            pacman-key --lsign-key "$X_KEY_FPR"
+        else
+            echo "installer: could not resolve the [x] key fingerprint" >&2
+            exit 1
+        fi
     else
-        echo "installer: could not resolve the [x] key fingerprint" >&2
+        echo "installer: $LIVE_KEY missing in the live; [x] cannot be required" >&2
         exit 1
     fi
-else
-    echo "installer: $LIVE_KEY missing in the live; [x] cannot be required" >&2
-    exit 1
+
+    GPGDIR="$MNT/etc/pacman.d/gnupg"
+    mkdir -p "$GPGDIR"
+    chmod 700 "$GPGDIR"
+    pacman-key --gpgdir "$GPGDIR" --init
+    pacman-key --gpgdir "$GPGDIR" --populate archlinux
+    pacman-key --gpgdir "$GPGDIR" --add "$LIVE_KEY"
+    pacman-key --gpgdir "$GPGDIR" --lsign-key "$X_KEY_FPR"
+    install -Dm644 "$LIVE_KEY" "$MNT/etc/pacman.d/x-repo.pub"
+
+    # Keep the live bootstrap current on the explicit pacman backend.
+    installer_progress "Updating live xpm"
+    update_live_xpm_pacman
 fi
 
-GPGDIR="$MNT/etc/pacman.d/gnupg"
-mkdir -p "$GPGDIR"
-chmod 700 "$GPGDIR"
-pacman-key --gpgdir "$GPGDIR" --init
-pacman-key --gpgdir "$GPGDIR" --populate archlinux
-pacman-key --gpgdir "$GPGDIR" --add "$LIVE_KEY"
-pacman-key --gpgdir "$GPGDIR" --lsign-key "$X_KEY_FPR"
-install -Dm644 "$LIVE_KEY" "$MNT/etc/pacman.d/x-repo.pub"
-
-# Keep the live bootstrap current, but never let an update failure block an
-# otherwise installable ISO. The target still installs xpm from [x].
-installer_progress "Updating live xpm"
-update_live_xpm
-
 if [[ "$BACKEND" == "xpm" ]]; then
+    # XPM-BACKEND-BEGIN
     installer_progress "Installing base packages"
-echo "== xpm target bootstrap"
-    xpm_check_backend
+    echo "== xpm target bootstrap"
     XPM_CACHE="${X_XPM_CACHE:-$MNT/var/cache/xpm/pkg}"
-    mkdir -p "$XPM_CACHE" "$MNT/var/lib/xpm" "$MNT/var/lib/pacman" "$MNT/etc/pacman.d"
+    mkdir -p "$XPM_CACHE" "$MNT/var/lib/xpm" "$MNT/etc/xpm"
     xpm_write_config "$XPM_BOOTSTRAP" "$MNT" "$XPM_CACHE"
-    XPM=(xpm --config "$XPM_BOOTSTRAP" --root "$MNT" --dbpath "$MNT/var/lib/xpm" --cachedir "$XPM_CACHE" --no-shell-integration)
+    XPM=(xpm --config "$XPM_BOOTSTRAP" --root "$MNT" --dbpath "$MNT/var/lib/xpm" --cachedir "$XPM_CACHE" --no-shell-integration --no-alpm-hooks)
 
     echo "== xpm sync (target databases; official repos + [x])"
     "${XPM[@]}" --scriptlets=skip --no-confirm sync
     xpm_target_version="$("${XPM[@]}" info xpm 2>/dev/null | awk '/^Version[[:space:]]*:/ {print $3; exit}')"
     if [[ -z "$xpm_target_version" ]] || (( $(vercmp "$xpm_target_version" 0.1.0-4) < 0 )); then
-        echo "installer: target [x] repo provides xpm ${xpm_target_version:-unknown}; the xpm backend needs >= 0.1.0-4. Publish the post-parity release or choose pacman." >&2
+        echo "installer: target [x] repo provides xpm ${xpm_target_version:-unknown}; the xpm backend needs >= 0.1.0-4. Publish the native xpm release or choose the other backend." >&2
         exit 1
     fi
-    echo "== xpm phase 1/2 (filesystem + bash)"
+    echo "== xpm phase 1/4 (filesystem + bash)"
     "${XPM[@]}" --scriptlets=skip --no-confirm install --needed filesystem bash
     xpm_bind_pseudo
-    echo "== xpm phase 2/3 (base package set)"
+    # Preinstall archlinux-keyring without its post_install scriptlet. The
+    # native keyring was prepared above, so the scriptlet must not run.
+    echo "== xpm phase 2/4 (target keyring package)"
+    "${XPM[@]}" --scriptlets=skip --no-confirm install --needed archlinux-keyring
+    echo "== xpm phase 3/4 (base package set)"
     "${XPM[@]}" --scriptlets=auto --no-confirm install --needed base
-    echo "== xpm phase 3/3 (remaining packages)"
+    echo "== xpm phase 4/4 (remaining packages)"
     "${XPM[@]}" --scriptlets=auto --no-confirm install --needed $PKGS
 
     echo "== installing x-scripts (offline payload from the live; xpm)"
@@ -501,14 +561,6 @@ echo "== xpm target bootstrap"
     else
         echo "warning: x-scripts package not found in the live" >&2
     fi
-
-    # xpm runs package scriptlets in the target; archlinux-keyring's scriptlet
-    # can no-op when the target keyring was initialized before the package was
-    # installed. Re-populate now that the package tree is present so later AUR
-    # dependency installs can verify every Arch packager signature.
-    echo "== refreshing target Arch keyring"
-    arch-chroot "$MNT" pacman-key --populate archlinux || \
-        echo "warning: could not refresh the target Arch keyring" >&2
 
     if [[ "$DESKTOP" == "kde" ]]; then
         XKDE_PKG="$(ls /root/x-installer/packages/x-kde-settings-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
@@ -523,51 +575,36 @@ echo "== xpm target bootstrap"
     mkdir -p "$MNT/var/lib/xpm"
     xpm_write_config "$MNT/etc/xpm.conf" "/" "/var/cache/xpm/pkg"
 
-    echo "== xpm pacman database mirror"
-    "${XPM[@]}" sync-pacman-db --pacman-db "$MNT/var/lib/pacman"
-    echo "== pacman sync databases for post-install tooling"
-    mkdir -p "$MNT/var/lib/pacman/sync"
-    cp -f "$MNT/var/lib/xpm/sync/"*.db "$MNT/var/lib/pacman/sync/" 2>/dev/null || true
-    cp -f "$MNT/var/lib/xpm/sync/"*.files "$MNT/var/lib/pacman/sync/" 2>/dev/null || true
-    for repo in x core extra; do
-        for suffix in db files; do
-            for src in "$MNT/var/lib/xpm/sync/.$repo.$suffix.part.sig" \
-                       "$MNT/var/lib/xpm/sync/$repo.$suffix.sig"; do
-                if [[ -f "$src" ]]; then
-                    cp -f "$src" "$MNT/var/lib/pacman/sync/$repo.$suffix.sig"
-                fi
-            done
-        done
-    done
-    XPM_NAMES="/tmp/xpm-names.$$"
-    PACMAN_NAMES="/tmp/pacman-names.$$"
-    "${XPM[@]}" query | awk '{print $1}' | LC_ALL=C sort > "$XPM_NAMES"
-    arch-chroot "$MNT" pacman -Qq | LC_ALL=C sort > "$PACMAN_NAMES"
-    xpm_count="$(wc -l < "$XPM_NAMES")"
-    pacman_count="$(wc -l < "$PACMAN_NAMES")"
-    if [[ "$xpm_count" -ne "$pacman_count" ]] || ! diff -q "$XPM_NAMES" "$PACMAN_NAMES" >/dev/null; then
-        echo "installer: xpm/pacman database mismatch (xpm=$xpm_count pacman=$pacman_count)" >&2
-        diff -u "$XPM_NAMES" "$PACMAN_NAMES" >&2 || true
-        rm -f "$XPM_NAMES" "$PACMAN_NAMES"
-        exit 1
-    fi
-    rm -f "$XPM_NAMES" "$PACMAN_NAMES"
-    echo "   databases agree: $xpm_count package(s)"
+    xpm_check_target_backend
+    # A transaction killed by a live-environment reboot can leave a stale xpm
+    # lock; the install is complete and no xpm transaction is running.
+    rm -f "$MNT/var/lib/xpm/transaction.lock"
+
+    install_local_x_kernel_xpm
 
     TARGET_XPM_QUERY="/tmp/target-xpm-query.$$"
-    if ! arch-chroot "$MNT" xpm query > "$TARGET_XPM_QUERY" 2>/dev/null \
-        || ! awk '$1 == "xpm" { found = 1 } END { exit !found }' "$TARGET_XPM_QUERY"; then
-        echo "installer: the installed xpm cannot query its database (the published [x] xpm predates the parity work); release xpm before using X_INSTALL_BACKEND=xpm" >&2
+    if ! arch-chroot "$MNT" xpm query > "$TARGET_XPM_QUERY" 2>/dev/null; then
+        echo "installer: the installed xpm cannot query its database; publish the native xpm before using X_INSTALL_BACKEND=xpm" >&2
         rm -f "$TARGET_XPM_QUERY"
         exit 1
     fi
+    for pkg in xpm base mkinitcpio x-scripts; do
+        if ! awk -v want="$pkg" '$1 == want { found = 1 } END { exit !found }' "$TARGET_XPM_QUERY"; then
+            echo "installer: xpm database is missing '$pkg' after the base install" >&2
+            rm -f "$TARGET_XPM_QUERY"
+            exit 1
+        fi
+    done
+    if [[ "$KERNEL_LOCAL" == "1" ]]; then
+        for pkg in "$KERNEL" "$KERNEL-headers"; do
+            if ! awk -v want="$pkg" '$1 == want { found = 1 } END { exit !found }' "$TARGET_XPM_QUERY"; then
+                echo "installer: xpm database is missing '$pkg' after the local kernel install" >&2
+                rm -f "$TARGET_XPM_QUERY"
+                exit 1
+            fi
+        done
+    fi
     rm -f "$TARGET_XPM_QUERY"
-
-    # A transaction killed by a live-environment reboot can leave a stale
-    # lock; the install is complete and no xpm/pacman transaction is running.
-    rm -f "$MNT/var/lib/xpm/transaction.lock" "$MNT/var/lib/pacman/db.lck"
-
-    install_local_x_kernel
 
     echo "== xpm finalize (ldconfig/sysusers/tmpfiles/ca-trust/depmod/mkinitcpio)"
     arch-chroot "$MNT" ldconfig
@@ -585,7 +622,9 @@ echo "== xpm target bootstrap"
         fi
     done
     xpm_unbind_pseudo || exit 1
+    # XPM-BACKEND-END
 else
+    # PACMAN-BACKEND-BEGIN
     echo "== pacstrap (online; official repos + [x])"
     pacstrap "$MNT" $PKGS
 
@@ -612,9 +651,10 @@ else
             echo "warning: x-kde-settings not found in the live; KDE will use stock Plasma branding" >&2
         fi
     fi
-fi
 
-install_local_x_kernel
+    install_local_x_kernel_pacman
+    # PACMAN-BACKEND-END
+fi
 
 network_persist_to_target "$MNT"
 
@@ -650,20 +690,22 @@ printf 'LANG=%s\n' "$LOCALE" > "$MNT/etc/locale.conf"
 printf 'KEYMAP=%s\n' "$KEYMAP" > "$MNT/etc/vconsole.conf"
 printf '%s\n' "$HOST" > "$MNT/etc/hostname"
 
-# Working mirrorlist for the installed system (pacman ships one commented out).
-if [[ -f /etc/pacman.d/mirrorlist ]]; then
-    cp /etc/pacman.d/mirrorlist "$MNT/etc/pacman.d/mirrorlist"
-fi
+if [[ "$BACKEND" == "pacman" ]]; then
+    # Working mirrorlist for the installed system (pacman ships one commented out).
+    if [[ -f /etc/pacman.d/mirrorlist ]]; then
+        cp /etc/pacman.d/mirrorlist "$MNT/etc/pacman.d/mirrorlist"
+    fi
 
-# Make the [x] repo available on the installed system.
-if ! grep -q '^\[x\]' "$MNT/etc/pacman.conf"; then
-    cat >> "$MNT/etc/pacman.conf" <<'EOF'
+    # Make the [x] repo available on the installed system.
+    if ! grep -q '^\[x\]' "$MNT/etc/pacman.conf"; then
+        cat >> "$MNT/etc/pacman.conf" <<'EOF'
 
 [x]
 # Key imported and locally signed during install (/etc/pacman.d/x-repo.pub).
 SigLevel = Required
 Server = https://equislinux.github.io/x-repo/repo/x86_64
 EOF
+    fi
 fi
 
 installer_progress "User and AUR tools"
@@ -687,7 +729,7 @@ AUR_XFETCH="${X_AUR_XFETCH:-xfetch-core-bin}"
 AUR_XTOP="${X_AUR_XTOP:-xtop-bin}"
 echo "== AUR tools ($AUR_XFETCH, $AUR_XTOP)"
 if [[ "$BACKEND" == "xpm" ]]; then
-    arch-chroot "$MNT" xpm install --no-confirm --needed xpm-aur >/dev/null 2>&1
+    arch-chroot "$MNT" xpm --no-alpm-hooks install --no-confirm --needed xpm-aur >/dev/null 2>&1
 else
     # xpm-aur is a normal [x] package; xpm is its runtime. Seed xpm's
     # database from pacman before it installs the AUR binary packages.
@@ -696,16 +738,24 @@ else
 fi
 cat > "$MNT/etc/sudoers.d/x-aur-install" <<'EOF'
 %wheel ALL=(ALL) NOPASSWD: ALL
+Defaults env_keep += "XPM_ALPM_HOOKS_DIRS"
 EOF
 chmod 440 "$MNT/etc/sudoers.d/x-aur-install"
-arch-chroot "$MNT" runuser -u "$USER" -- \
+arch-chroot "$MNT" install -d -m 755 /run/xpm/no-alpm-hooks
+arch-chroot "$MNT" runuser -u "$USER" -- env \
+    XPM_ALPM_HOOKS_DIRS=/run/xpm/no-alpm-hooks \
     xpm-aur -S --aur --needed --noconfirm "$AUR_XFETCH" "$AUR_XTOP"
 rm -f "$MNT/etc/sudoers.d/x-aur-install"
 
 installer_progress "Provisioning x-scripts"
 echo "== provisioning (x-scripts)"
-arch-chroot "$MNT" env X_HW_AUTO=0 X_GEN_SKIP=1 x setup
-arch-chroot "$MNT" runuser -u "$USER" -- env X_HYPRLAND=0 X_HW_AUTO=0 /usr/bin/x setup --user
+if [[ "$BACKEND" == "xpm" ]]; then
+    arch-chroot "$MNT" env X_PKG_BACKEND=xpm X_HW_AUTO=0 X_GEN_SKIP=1 x setup
+    arch-chroot "$MNT" runuser -u "$USER" -- env X_PKG_BACKEND=xpm X_HYPRLAND=0 X_HW_AUTO=0 /usr/bin/x setup --user
+else
+    arch-chroot "$MNT" env X_HW_AUTO=0 X_GEN_SKIP=1 x setup
+    arch-chroot "$MNT" runuser -u "$USER" -- env X_HYPRLAND=0 X_HW_AUTO=0 /usr/bin/x setup --user
+fi
 
 # Audio stack enabled for all users (pipewire/wireplumber) + network.
 arch-chroot "$MNT" systemctl --global enable pipewire pipewire-pulse wireplumber >/dev/null 2>&1 || true
@@ -779,7 +829,7 @@ fi
 if [[ "$AGENTS" == "yes" ]]; then
     echo "== installing the opencode CLI (opencode-bin from [x])"
     if [[ "$BACKEND" == "xpm" ]]; then
-        arch-chroot "$MNT" xpm install --no-confirm --needed opencode-bin >/dev/null 2>&1 \
+        arch-chroot "$MNT" xpm --no-alpm-hooks install --no-confirm --needed opencode-bin >/dev/null 2>&1 \
             || echo "warning: opencode-bin not installed (is it published in [x]?)"
     else
         arch-chroot "$MNT" pacman -S --needed --noconfirm opencode-bin >/dev/null 2>&1 \
@@ -913,23 +963,22 @@ if [[ "$MODE" == "dualboot" ]]; then
     fi
 fi
 
-# Desktop setup prefers xpm-aur, but yay/paru remain fallbacks and pacman is
-# still used by some helpers. Import any pacman-only records so xpm sees the
-# full installed set before the first generation capture.
-if [[ "$BACKEND" == "xpm" ]]; then
-    echo "== importing pacman-installed desktop/AUR packages into xpm"
-    arch-chroot "$MNT" xpm import-pacman --force
-fi
-
 # First generation: snapshot of the installed system + manifest (base for
 # rollbacks and granular restores; see scripts/docs/en/generations.md).
 installer_progress "Creating first generation"
 echo "== first generation"
 if arch-chroot "$MNT" test -x /usr/bin/x; then
-    arch-chroot "$MNT" env X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ \
-        X_GEN_SUBVOL_PREFIX=/@snapshots \
-        x gen new --reason install --label first \
-        || echo "warning: the first generation could not be created" >&2
+    if [[ "$BACKEND" == "xpm" ]]; then
+        arch-chroot "$MNT" env X_PKG_BACKEND=xpm X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ \
+            X_GEN_SUBVOL_PREFIX=/@snapshots \
+            x gen new --reason install --label first \
+            || echo "warning: the first generation could not be created" >&2
+    else
+        arch-chroot "$MNT" env X_GEN_CMDLINE="$CMDROOT" X_GEN_LIVE_SUBVOL=/@ \
+            X_GEN_SUBVOL_PREFIX=/@snapshots \
+            x gen new --reason install --label first \
+            || echo "warning: the first generation could not be created" >&2
+    fi
 else
     echo "warning: x CLI not found in the target; skipping the first generation" >&2
 fi

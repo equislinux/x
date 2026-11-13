@@ -64,9 +64,13 @@ select_one BACKEND "Package manager for the base system" \
     "xpm (native X, experimental)"
 [[ "$BACKEND" == xpm* ]] && BACKEND="xpm" || BACKEND="pacman"
 if [[ "$BACKEND" == "xpm" ]]; then
-    if ! command -v xpm >/dev/null 2>&1 || ! xpm --help 2>&1 | grep -q -- '--scriptlets'; then
-        echo "configurator: this live image lacks the post-parity xpm; using pacman" >&2
-        BACKEND="pacman"
+    xpm_help="$(xpm --help 2>&1 || true)"
+    if ! command -v xpm >/dev/null 2>&1 \
+        || ! grep -q -- '--scriptlets' <<<"$xpm_help" \
+        || ! grep -q -- '--no-shell-integration' <<<"$xpm_help" \
+        || ! grep -q -- '--no-alpm-hooks' <<<"$xpm_help"; then
+        echo "configurator: this live image lacks the native xpm backend (--scriptlets/--no-shell-integration/--no-alpm-hooks); refusing to fall back to pacman" >&2
+        exit 1
     fi
 fi
 

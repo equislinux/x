@@ -1,9 +1,12 @@
 #!/usr/bin/env bash
-# Update xpm in the live environment before the target installation starts.
+# Update xpm in the live environment before a pacman-backend install starts.
+# This helper is pacman-only: the xpm backend uses the bundled live xpm and
+# never falls back to pacman for bootstrap.
+#
 # The live xpm is the bootstrap version; the target still installs xpm/xpm-aur
 # from [x] through the normal backend.
 
-update_live_xpm() {
+update_live_xpm_pacman() {
     command -v pacman >/dev/null 2>&1 || {
         echo "early-xpm: pacman unavailable; using bundled xpm" >&2
         return 0

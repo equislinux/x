@@ -54,8 +54,8 @@ check "the live ISO ships xpm" \
     grep -qx 'xpm' "$SRC/packages.x86_64"
 check "the live xpm configuration is valid TOML" \
     python3 -c 'import sys, tomllib; tomllib.load(open(sys.argv[1], "rb"))' "$SRC/airootfs/etc/xpm.conf"
-check "the live xpm configuration uses the target pacman database" \
-    python3 -c 'import sys, tomllib; o = tomllib.load(open(sys.argv[1], "rb"))["options"]; assert o["root_dir"] == "/"; assert o["db_path"] == "/var/lib/xpm"; assert o["cache_dir"] == "/var/cache/xpm/pkg"; assert o["gpg_dir"] == "/etc/pacman.d/gnupg"; assert o["pacman_db"] == "/var/lib/pacman"; assert o["mirror_pacman"] is True; assert o["shell_integration"] is False; assert o["sig_level"] == "required"' "$SRC/airootfs/etc/xpm.conf"
+check "the live xpm configuration uses the native keyring" \
+    python3 -c 'import sys, tomllib; o = tomllib.load(open(sys.argv[1], "rb"))["options"]; assert o["root_dir"] == "/"; assert o["db_path"] == "/var/lib/xpm"; assert o["cache_dir"] == "/var/cache/xpm/pkg"; assert o["gpg_dir"] == "/etc/xpm/gnupg"; assert "pacman_db" not in o; assert o["mirror_pacman"] is False; assert o["shell_integration"] is False; assert o["sig_level"] == "required"' "$SRC/airootfs/etc/xpm.conf"
 check "the live xpm configuration trusts x, core and extra" \
     python3 -c 'import sys, tomllib; r = tomllib.load(open(sys.argv[1], "rb"))["repo"]; assert [x["name"] for x in r[:3]] == ["x", "core", "extra"]; assert r[0]["server"] == ["https://equislinux.github.io/x-repo/repo/x86_64"]; assert r[0]["sig_level"] == "required"; assert all("$repo" in x["server"][0] and "$arch" in x["server"][0] for x in r[1:3])' "$SRC/airootfs/etc/xpm.conf"
 check "install.sh reads the backend from the JSON seed" \
@@ -72,16 +72,38 @@ check "xpm gets a target bootstrap configuration" \
     grep -q 'xpm_write_config "$XPM_BOOTSTRAP" "$MNT"' "$INST"
 check "xpm gets a target runtime configuration" \
     grep -q 'xpm_write_config "$MNT/etc/xpm.conf"' "$INST"
-check "xpm uses a target keyring without shell integration" \
-    bash -c "grep -q 'pacman-key --gpgdir \"\$GPGDIR\" --init' '$INST' && grep -q -- '--no-shell-integration' '$INST'"
+check "xpm uses a native GnuPG keyring without shell integration" \
+    bash -c "grep -q 'XPM_GPGDIR=\"\$dir\" /usr/local/bin/x-repo-key' '$INST' && grep -q -- '--no-shell-integration' '$INST'"
+check "xpm refuses to fall back when native flags are missing" \
+    bash -c "grep -q -- '--no-alpm-hooks' '$INST' && grep -q 'refusing to fall back to pacman' '$INST'"
 check "xpm installs base before the remaining profile" \
     bash -c "grep -q -- '--scriptlets=auto --no-confirm install --needed base' '$INST' && grep -q -- '--scriptlets=auto --no-confirm install --needed \$PKGS' '$INST'"
 check "installer offers the base package manager choice" \
     bash -c "grep -q 'Package manager for the base system' '$CONF' && grep -q '\"backend\":\"\$BACKEND\"' '$CONF'"
 check "xpm backend requires a post-parity target xpm" \
     grep -q '0.1.0-4' "$INST"
-check "xpm mirrors the target pacman database and checks parity" \
-    bash -c "grep -q 'sync-pacman-db --pacman-db' '$INST' && grep -q 'databases agree' '$INST'"
+check "configurator refuses xpm without the native flags" \
+    grep -q 'refusing to fall back to pacman' "$CONF"
+check "xpm backend checks the target supports --no-alpm-hooks" \
+    grep -q 'xpm_check_target_backend' "$INST"
+check "xpm does not mirror or import pacman databases" \
+    bash -c "! sed -n '/# XPM-BACKEND-BEGIN/,/# XPM-BACKEND-END/p' '$INST' | grep -Eq '(^|[^[:alnum:]_])(sync-pacman-db|import-pacman|pacman_db|mirror_pacman)([^[:alnum:]_]|$)'"
+check "the xpm branch contains no pacman calls" \
+    bash -c "! sed -n '/# XPM-BACKEND-BEGIN/,/# XPM-BACKEND-END/p' '$INST' | grep -Eq '(^|[^[:alnum:]_])(pacman|pacman-key|pacstrap|sync-pacman-db|import-pacman)([^[:alnum:]_]|$)'"
+check "the xpm local kernel path uses xpm, not pacman" \
+    bash -c "! sed -n '/^install_local_x_kernel_xpm()/,/^}/p' '$INST' | grep -Eq '(^|[^[:alnum:]_])(pacman|pacman-key|pacstrap|sync-pacman-db|import-pacman)([^[:alnum:]_]|$)'"
+check "the xpm local kernel path verifies detached signatures" \
+    grep -q 'gpg --batch --homedir "\$gpgdir" --verify "\$main.sig" "\$main"' "$INST"
+check "the pacman branch keeps pacstrap and pacman -U" \
+    bash -c "sed -n '/# PACMAN-BACKEND-BEGIN/,/# PACMAN-BACKEND-END/p' '$INST' | grep -q 'pacstrap' && sed -n '/# PACMAN-BACKEND-BEGIN/,/# PACMAN-BACKEND-END/p' '$INST' | grep -q 'pacman -U'"
+check "the pacman backend still initializes pacman-key" \
+    grep -q 'pacman-key --gpgdir "\$GPGDIR" --init' "$INST"
+check "live boot services do not run pacman-key" \
+    bash -c "! grep -Rqs 'pacman-key' '$SRC/airootfs/etc/systemd/system' '$SRC/airootfs/usr/local/bin/x-repo-key'"
+check "pacman-init is not enabled in the live image" \
+    bash -c "! test -e '$SRC/airootfs/etc/systemd/system/pacman-init.service' && ! test -e '$SRC/airootfs/etc/systemd/system/multi-user.target.wants/pacman-init.service'"
+check "x-keyring prepares the native xpm keyring" \
+    bash -c "grep -q 'ExecStart=/usr/local/bin/x-repo-key' '$SRC/airootfs/etc/systemd/system/x-keyring.service' && ! grep -q 'pacman-init' '$SRC/airootfs/etc/systemd/system/x-keyring.service'"
 check "xpm verifies the installed xpm before the first generation" \
     grep -q 'the installed xpm cannot query its database' "$INST"
 check "target pseudo filesystems are unmounted before genfstab" \
@@ -92,8 +114,8 @@ check "e2e harness exposes --backend" \
     grep -q -- '"--backend"' "$SRC/tests/e2e-autoinstall.py"
 check "e2e harness seeds the backend" \
     grep -q '"backend":"{self.args.backend}"' "$SRC/tests/e2e-autoinstall.py"
-check "e2e harness asserts xpm DB parity" \
-    grep -q 'xpm query | awk' "$SRC/tests/e2e-autoinstall.py"
+check "e2e harness uses xpm query for the xpm backend" \
+    grep -q 'xpm query' "$SRC/tests/e2e-autoinstall.py"
 
 if [[ "$FAIL" -eq 0 ]]; then
     echo "installer-defaults: OK"

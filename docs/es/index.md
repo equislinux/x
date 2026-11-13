@@ -70,7 +70,7 @@ Documentación relacionada en este repositorio:
 - **Branding.** Identidad aplicada a GRUB (`GRUB_DISTRIBUTOR="X"`), a la
   etiqueta/editor del ISO, al MOTD y a los paquetes instalados.
 - **Instalador de texto.** `configurator.sh` recoge las opciones y escribe un
-  plan JSON; `install.sh` particiona (GPT/btrfs), ejecuta `pacstrap`,
+  plan JSON; `install.sh` particiona (GPT/btrfs), ejecuta xpm o `pacstrap`,
   configura el sistema base, aprovisiona con `x-scripts` e instala un gestor
   de arranque.
 - **Instalación desatendida.** El ISO incluye una entrada de arranque

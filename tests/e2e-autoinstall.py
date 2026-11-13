@@ -427,6 +427,22 @@ class E2E:
         if "E2E_CHK _FAIL" in seg:
             raise E2EError(f"check failed: {check}\n{seg[-800:]}")
 
+    def _installed_names_cmd(self) -> str:
+        """The local package query for the selected backend."""
+        if self.args.backend == "xpm":
+            return "xpm query | awk '{print $1}'"
+        return "pacman -Qq"
+
+    def assert_installed(self, pkg: str) -> None:
+        self.expect_ok(f"{self._installed_names_cmd()} | grep -qx {pkg}")
+
+    def assert_installed_any(self, *pkgs: str) -> None:
+        pattern = "|".join(re.escape(pkg) for pkg in pkgs)
+        self.expect_ok(f"{self._installed_names_cmd()} | grep -Eq '^({pattern})$'")
+
+    def assert_not_installed(self, pkg: str) -> None:
+        self.expect_ok(f"! ({self._installed_names_cmd()} | grep -qx {pkg})")
+
     def sudo_expect(self, cmd: str, sentinel: str, timeout: float = 90) -> str:
         """Run a command through sudo on the console, handling the password prompt."""
         assert self.console is not None
@@ -475,19 +491,14 @@ class E2E:
         log("checking base tools (xfetch/xtop)")
         self.expect_ok("command -v xfetch")
         self.expect_ok("command -v xtop")
-        self.expect_ok("pacman -Qq | grep -Eq '^(xfetch-bin|xfetch-git|xfetch-core-bin)$'")
-        self.expect_ok("pacman -Qq | grep -Eq '^(xtop-git|xtop-bin)$'")
-        self.expect_ok("pacman -Qq x-scripts")
+        self.assert_installed_any("xfetch-bin", "xfetch-git", "xfetch-core-bin")
+        self.assert_installed_any("xtop-git", "xtop-bin")
+        self.assert_installed("x-scripts")
         if self.args.backend == "xpm":
-            log("checking the xpm backend (packages, DB parity, boot files)")
+            log("checking the xpm backend (packages, boot files)")
             self.expect_ok("command -v xpm")
-            self.expect_ok("pacman -Qq xpm")
-            for pkg in ("base", self.args.kernel, "mkinitcpio", "xpm"):
-                self.expect_ok(f"xpm query | awk '{{print $1}}' | grep -qx {pkg}")
-            self.expect_ok(
-                "diff -u <(xpm query | awk '{print $1}' | LC_ALL=C sort) "
-                "<(pacman -Qq | LC_ALL=C sort)"
-            )
+            for pkg in ("base", self.args.kernel, "mkinitcpio", "xpm", "x-scripts"):
+                self.assert_installed(pkg)
             self.expect_ok(f"test -f /boot/vmlinuz-{self.args.kernel}")
             self.expect_ok(f"test -f /boot/initramfs-{self.args.kernel}.img")
             self.expect_ok("stat -c '%a %u %g %n' /usr/bin/sudo")
@@ -496,11 +507,11 @@ class E2E:
                 f"/home/{user}/.bashrc /home/{user}/.zshrc"
             )
         log("checking the created user's shell (zsh)")
-        self.expect_ok("pacman -Qq zsh")
+        self.assert_installed("zsh")
         self.expect_ok(f'getent passwd {user} | cut -d: -f7 | grep -qx /usr/bin/zsh')
         self.expect_ok('grep -qx /usr/bin/zsh /etc/shells')
-        self.expect_ok(f"pacman -Qq {self.args.kernel}")
-        self.expect_ok(f"pacman -Qq {self.args.kernel}-headers")
+        self.assert_installed(self.args.kernel)
+        self.assert_installed(f"{self.args.kernel}-headers")
         self.expect_ok(
             f'test "$(cat /usr/lib/modules/$(uname -r)/pkgbase)" = "{self.args.kernel}"'
         )
@@ -517,7 +528,7 @@ class E2E:
             self.expect_ok("command -v slangc")
             self.expect_ok(f"test -f /home/{user}/.zshrc")
             self.expect_ok(f"grep -q 'starship init zsh' /home/{user}/.zshrc")
-            self.expect_ok("pacman -Qq noto-fonts-cjk")
+            self.assert_installed("noto-fonts-cjk")
         if self.args.agents:
             log("checking agent payload (opencode + Xscriptor bundle)")
             self.expect_ok("command -v opencode")
@@ -526,21 +537,21 @@ class E2E:
             self.expect_ok(f"test -d /home/{user}/.local/state/x/agents")
         if self.args.desktop == "hyprland":
             log("checking Hyprland/equisdots payload")
-            self.expect_ok("pacman -Qq hyprland")
+            self.assert_installed("hyprland")
             self.expect_ok("command -v Hyprland")
             self.expect_ok(f"test -f /home/{user}/.config/hypr/hyprland.lua")
             self.expect_ok(f"test -f /home/{user}/.config/hypr/settings.json")
             self.expect_ok(f"test -d /home/{user}/.config/hypr/scripts/quickshell")
             self.expect_ok(f"test -x /home/{user}/.local/bin/dots")
-            self.expect_ok("pacman -Qq quickshell-git")
-            self.expect_ok("pacman -Qq networkmanager-dmenu-git")
-            self.expect_ok("pacman -Qq swayosd-git")
-            self.expect_ok("pacman -Qq bibata-cursor-theme")
-            self.expect_ok("pacman -Qq mpvpaper")
-            self.expect_ok("pacman -Qq networkmanager-dmenu-git")
+            self.assert_installed("quickshell-git")
+            self.assert_installed("networkmanager-dmenu-git")
+            self.assert_installed("swayosd-git")
+            self.assert_installed("bibata-cursor-theme")
+            self.assert_installed("mpvpaper")
+            self.assert_installed("networkmanager-dmenu-git")
         if self.args.desktop == "niri":
             log("checking niri/equisdots payload")
-            self.expect_ok("pacman -Qq niri")
+            self.assert_installed("niri")
             self.expect_ok("command -v niri")
             self.expect_ok(f"test -f /home/{user}/.config/niri/config.kdl")
             self.expect_ok(f"niri validate -c /home/{user}/.config/niri/config.kdl")
@@ -549,8 +560,8 @@ class E2E:
             self.expect_ok("test -f /usr/share/sddm/themes/x/Main.qml")
         if self.args.desktop == "kde":
             log("checking KDE Plasma payload and X branding")
-            self.expect_ok("pacman -Qq plasma-meta")
-            self.expect_ok("pacman -Qq x-kde-settings")
+            self.assert_installed("plasma-meta")
+            self.assert_installed("x-kde-settings")
             self.expect_ok("test -f /usr/share/plasma/look-and-feel/org.x.desktop/metadata.json")
             self.expect_ok("grep -q 'LookAndFeelPackage=org.x.desktop' /etc/xdg/kdeglobals")
             self.expect_ok("test -f /usr/share/color-schemes/XDark.colors")
@@ -562,10 +573,10 @@ class E2E:
         self.expect_ok("grep -q '^PRETTY_NAME=\"X Linux\"' /etc/os-release")
         if self.args.virt:
             log("checking virtualization stack (QEMU/KVM + libvirt + virt-manager)")
-            self.expect_ok("pacman -Qq qemu-desktop")
-            self.expect_ok("pacman -Qq qemu-img")
-            self.expect_ok("pacman -Qq libvirt")
-            self.expect_ok("pacman -Qq virt-manager")
+            self.assert_installed("qemu-desktop")
+            self.assert_installed("qemu-img")
+            self.assert_installed("libvirt")
+            self.assert_installed("virt-manager")
             self.expect_ok("command -v virt-manager")
             self.expect_ok(f"id -nG {user} | grep -qw libvirt")
             self.expect_ok(f"id -nG {user} | grep -qw kvm")
@@ -612,10 +623,10 @@ class E2E:
         # freeze /var/lib/pacman/db.lck (it exists during the transaction).
         log("checking that hooks do not freeze pacman's db.lck")
         if self.args.backend == "xpm":
-            seg = self.sudo_expect("xpm install --no-confirm --needed tree", "E2E_PKG", 300)
+            seg = self.sudo_expect("xpm --no-alpm-hooks install --no-confirm --needed tree", "E2E_PKG", 300)
             if "installed successfully" not in seg:
                 raise E2EError(f"xpm install did not report success:\n{seg[-800:]}")
-            self.expect_ok("pacman -Qq tree")
+            self.assert_installed("tree")
         else:
             self.console.send("sudo pacman -S --noconfirm tree >/dev/null 2>&1; echo E2E_PKG\" \"_END\n")
             if self.console.expect_opt(r"[Pp]assword[^\n]*:", 5):
@@ -683,7 +694,7 @@ class E2E:
         for pkg in ("cowsay", "zip", "htop", "ncdu", "bmon"):
             if self.args.backend == "xpm":
                 seg = self.sudo_expect(
-                    f"xpm install --no-confirm --needed {pkg}",
+                    f"xpm --no-alpm-hooks install --no-confirm --needed {pkg}",
                     f"E2E_PKG_{pkg}",
                     600,
                 )
@@ -750,8 +761,8 @@ class E2E:
         seg = self.sudo_expect("x kernel install linux-lts --yes", "E2E_MK_INSTALL", 900)
         if "installed linux-lts" not in seg:
             raise E2EError(f"x kernel install did not report linux-lts:\n{seg[-800:]}")
-        self.expect_ok("pacman -Qq linux-lts")
-        self.expect_ok("pacman -Qq linux-lts-headers")
+        self.assert_installed("linux-lts")
+        self.assert_installed("linux-lts-headers")
 
         seg = self.sudo_expect(
             "sh -c 'for g in $(ls -1 /var/lib/x/generations | LC_ALL=C sort | tail -2); do echo GEN:$g; done'",
@@ -773,7 +784,7 @@ class E2E:
         log(f"multikernel: generation {gen} archives both kernels; the entry exists")
 
         self.reboot_and_login()
-        self.expect_ok("pacman -Qq linux-lts")
+        self.assert_installed("linux-lts")
         self.expect_ok('test "$(cat /usr/lib/modules/$(uname -r)/pkgbase)" = "linux"')
 
         log("multikernel: the running kernel must be protected from removal")
@@ -785,8 +796,13 @@ class E2E:
         seg = self.sudo_expect("x kernel remove linux-lts --yes", "E2E_MK_REMOVE", 600)
         if "removed linux-lts" not in seg:
             raise E2EError(f"x kernel remove did not report linux-lts:\n{seg[-800:]}")
+        query = (
+            "xpm query | awk '{print $1}' | grep -qx linux-lts"
+            if self.args.backend == "xpm"
+            else "pacman -Qq linux-lts >/dev/null 2>&1"
+        )
         self.console.send(
-            'if pacman -Qq linux-lts >/dev/null 2>&1; then echo E2E_MK_GONE" "_FAIL; '
+            f'if {query}; then echo E2E_MK_GONE" "_FAIL; '
             'else echo E2E_MK_GONE" "_OK; fi\n'
         )
         _, seg = self.console.expect(r"E2E_MK_GONE _(?:OK|FAIL)", 30)

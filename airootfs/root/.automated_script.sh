@@ -32,7 +32,7 @@ automated_script() {
         if [[ ${rt} -eq 0 ]]; then
             chmod +x /tmp/startup_script
             printf '%s: executing automated script\n' "$0"
-            # note that script is executed when other services (like pacman-init) may be still in progress, please
+            # note that script is executed when other services (like x-keyring) may be still in progress, please
             # synchronize to "systemctl is-system-running --wait" when your script depends on other services
             /tmp/startup_script
         fi

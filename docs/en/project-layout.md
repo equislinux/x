@@ -60,13 +60,13 @@ parts:
 | `airootfs/etc/systemd/network/` | DHCP networkd configs (ethernet/wlan/wwan). |
 | `airootfs/etc/systemd/system/` | Live systemd units, including `x-autoinstall.service` and live-helper services. |
 | `airootfs/etc/systemd/system/getty@tty1.service.d/autologin.conf` | Root autologin on TTY1. |
-| `airootfs/etc/systemd/system/etc-pacman.d-gnupg.mount` | archiso keyring handling. |
+| `airootfs/etc/systemd/system/etc-pacman.d-gnupg.mount` | Optional pacman-key tmpfs mount; xpm uses `/etc/xpm/gnupg`. |
 | `airootfs/root/.automated_script.sh` | Official archiso `script=` automation runner. |
 | `airootfs/root/.zlogin` | zsh login hook that starts the installer on TTY1. |
 | `airootfs/etc/systemd/system/multi-user.target.wants/` | Committed enablement symlinks for live services (`x-autoinstall`, `x-keyring`, NetworkManager, ...). |
 | `airootfs/root/x-installer/` | The text installer (see [Text installer](installer.md)). |
 | `airootfs/root/x-postinstall.sh` | Legacy first-boot branding script; not invoked by the current installer (provisioning goes through the `x-scripts` payload). |
-| `airootfs/usr/local/bin/` | Live helpers: `choose-mirror`, `livecd-sound`, `Installation_guide`, `xinstall`. |
+| `airootfs/usr/local/bin/` | Live helpers: `choose-mirror`, `livecd-sound`, `Installation_guide`, `xinstall`, `x-repo-key` (native xpm keyring). |
 | `airootfs/usr/local/share/livecd-sound/` | Sound template for `livecd-sound`. |
 
 ## `airootfs/root/x-installer/`
@@ -77,7 +77,7 @@ The text installer shipped in the live image:
 |------|---------|
 | `installer.sh` | Entry point; runs the configurator then the installer. |
 | `configurator.sh` | Interactive configuration (gum/plain prompts); writes the JSON plan. |
-| `install.sh` | Performs partitioning, `pacstrap`, base config, user, provisioning, bootloader. |
+| `install.sh` | Performs partitioning, xpm or pacstrap package installation, base config, user, provisioning, bootloader. |
 | `autoinstall.sh` | Unattended installer (triggered by `xauto=1` + `cidata` disk). |
 | `ui.sh` | Shared UI helpers used by the other scripts. |
 | `packages.x86_64` | Default manifest for the `full` package profile. |
