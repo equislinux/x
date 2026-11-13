@@ -4,6 +4,9 @@
 # prompts otherwise (TTY without gum or non-interactive tests).
 
 have_gum() {
+    # X_INSTALL_PLAIN=1 forces the numbered fallback prompts. This is used by
+    # the interactive serial test harness and by headless environments.
+    [[ "${X_INSTALL_PLAIN:-0}" == "1" ]] && return 1
     command -v gum >/dev/null 2>&1
 }
 

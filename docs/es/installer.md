@@ -70,12 +70,14 @@ cae a prompts de texto plano en caso contrario (`ui.sh`).
 | Password del usuario | texto libre (repetido) | `password` |
 | Perfil de paquetes | `Full (all packages)` / `Core (minimal system)` | `profile` (`full`/`core`) |
 | Gestor de arranque | `GRUB (BIOS + UEFI)` / `systemd-boot (UEFI only)` | `bootloader` (`grub`/`systemd-boot`) |
-| Kernel | `linux (stable)` / `linux-lts (longterm)` / `linux-zen (desktop)` | `kernel` (`linux`/`linux-lts`/`linux-zen`; `linux-hardened`, `linux-rt`, `linux-rt-lts` aceptados vía JSON) |
+| Kernel | `linux (Arch stable)` / `linux-lts (Arch longterm)` / `linux-zen (Arch desktop)` / `linux-x (X stable)` / `linux-x-mainline (X mainline)` | `kernel` (`linux`/`linux-lts`/`linux-zen`/`linux-x`/`linux-x-mainline`; `linux-hardened`, `linux-rt`, `linux-rt-lts` aceptados vía JSON) |
 | Cifrado de raíz (LUKS) | sí/no | `encryption` (`yes`/`no`) |
 | Passphrase LUKS | reutilizar la del usuario o una dedicada | `luks_password` |
 | Entorno de escritorio | Hyprland (online) / Niri (online) / KDE Plasma (online) / Ninguno | `desktop` (`hyprland`/`niri`/`kde`/`none`); `hyprland` (`yes`/`online`/`no`) es la clave legacy |
 | Instalar los agentes IA de Xscriptor | sí/no (requiere red) | `agents` (`yes`/`no`) |
 | Instalar virtualización | sí/no (QEMU/KVM + libvirt + GUI virt-manager) | `virtualization` (`yes`/`no`) |
+
+Las opciones `linux-x` y `linux-x-mainline` son kernels adicionales, no sustitutos. Sus paquetes firmados van incluidos en la ISO y se instalan con `pacman -U`; los kernels Arch siguen viniendo de los repositorios online.
 
 Mapeo idioma a locale que usa el configurador:
 

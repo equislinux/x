@@ -66,8 +66,12 @@ esac
 [[ "$MODE" == "wipe" || "$MODE" == "dualboot" ]] || { echo "installer: invalid mode '$MODE' (wipe|dualboot)" >&2; exit 1; }
 [[ "$MIN_SIZE" =~ ^[0-9]+$ ]] || { echo "installer: min_size must be a number of GiB" >&2; exit 1; }
 case "$KERNEL" in
-    linux|linux-lts|linux-zen|linux-hardened|linux-rt|linux-rt-lts) ;;
-    *) echo "installer: unsupported kernel '$KERNEL' (linux|linux-lts|linux-zen|linux-hardened|linux-rt|linux-rt-lts)" >&2; exit 1 ;;
+    linux|linux-lts|linux-zen|linux-hardened|linux-rt|linux-rt-lts|linux-x|linux-x-mainline) ;;
+    *) echo "installer: unsupported kernel '$KERNEL' (linux|linux-lts|linux-zen|linux-hardened|linux-rt|linux-rt-lts|linux-x|linux-x-mainline)" >&2; exit 1 ;;
+esac
+KERNEL_LOCAL=0
+case "$KERNEL" in
+    linux-x|linux-x-mainline) KERNEL_LOCAL=1 ;;
 esac
 if [[ -n "$KERNEL_PARAMS" && ! "$KERNEL_PARAMS" =~ ^[A-Za-z0-9_=.,:/@%+-]+([[:space:]][A-Za-z0-9_=.,:/@%+-]+)*$ ]]; then
     echo "installer: kernel_params contains unsupported characters" >&2
@@ -234,6 +238,27 @@ xpm_check_backend() {
     fi
 }
 
+install_local_x_kernel() {
+    [[ "$KERNEL_LOCAL" == "1" ]] || return 0
+    local dir=/root/x-installer/kernel-packages main headers
+    main="$(find "$dir" -maxdepth 1 -type f -name "$KERNEL-[0-9]*.pkg.tar.zst" -print -quit 2>/dev/null || true)"
+    headers="$(find "$dir" -maxdepth 1 -type f -name "$KERNEL-headers-[0-9]*.pkg.tar.zst" -print -quit 2>/dev/null || true)"
+    if [[ -z "$main" || -z "$headers" ]]; then
+        echo "installer: local $KERNEL packages are missing from the ISO ($dir)" >&2
+        exit 1
+    fi
+    echo "== installing $KERNEL from the bundled ISO packages"
+    cp -f "$main" "$headers" "$MNT/root/"
+    arch-chroot "$MNT" pacman -U --noconfirm \
+        "/root/$(basename "$main")" "/root/$(basename "$headers")" >/dev/null
+    rm -f "$MNT/root/$(basename "$main")" "$MNT/root/$(basename "$headers")"
+    arch-chroot "$MNT" depmod -a || true
+    arch-chroot "$MNT" mkinitcpio -P || true
+    if [[ "$BACKEND" == "xpm" ]]; then
+        arch-chroot "$MNT" xpm import-pacman --force >/dev/null 2>&1 || true
+    fi
+}
+
 cleanup() {
     rm -f "$MNT/etc/sudoers.d/x-hypr-install" 2>/dev/null || true
     xpm_unbind_pseudo 2>/dev/null || true
@@ -359,7 +384,9 @@ chmod 700 "$MNT/.snapshots" "$MNT/var/lib/x"
 mount "$EFI" "$MNT/boot"
 
 # Package set per profile.
-EXTRA="base base-devel $KERNEL $KERNEL-headers linux-firmware mkinitcpio sudo networkmanager openssh git jq x-release x-wallpapers btrfs-progs"
+EXTRA="base base-devel"
+[[ "$KERNEL_LOCAL" == "1" ]] || EXTRA="$EXTRA $KERNEL $KERNEL-headers"
+EXTRA="$EXTRA linux-firmware mkinitcpio sudo networkmanager openssh git jq x-release x-wallpapers btrfs-progs"
 [[ "$BACKEND" == "xpm" ]] && EXTRA="$EXTRA xpm"
 # Terminal and audio stack are always installed (work without the Hyprland setup).
 # zsh is part of the base set (not only the core profile): every created user
@@ -533,6 +560,8 @@ echo "== xpm target bootstrap"
     # lock; the install is complete and no xpm/pacman transaction is running.
     rm -f "$MNT/var/lib/xpm/transaction.lock" "$MNT/var/lib/pacman/db.lck"
 
+    install_local_x_kernel
+
     echo "== xpm finalize (ldconfig/sysusers/tmpfiles/ca-trust/depmod/mkinitcpio)"
     arch-chroot "$MNT" ldconfig
     arch-chroot "$MNT" systemd-sysusers
@@ -577,6 +606,8 @@ else
         fi
     fi
 fi
+
+install_local_x_kernel
 
 network_persist_to_target "$MNT"
 

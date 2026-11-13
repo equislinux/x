@@ -40,7 +40,7 @@
 
 <ul>
   <li><b>Bootable generations</b> — every package transaction is captured as a btrfs snapshot with its own boot entry. Roll back, diff, verify, pin, or export signed and encrypted bundles (<code>x gen</code>).</li>
-  <li><b>Multi-kernel</b> — pick <code>linux</code>, <code>linux-lts</code> or <code>linux-zen</code> at install time or later with <code>x kernel install|remove</code>, protected by guard rails for the running and last kernel.</li>
+  <li><b>Multi-kernel</b> — pick <code>linux</code>, <code>linux-lts</code>, <code>linux-zen</code>, <code>linux-x</code> or <code>linux-x-mainline</code> at install time; the Arch kernels can also be managed later with <code>x kernel install|remove</code>, protected by guard rails for the running and last kernel.</li>
   <li><b>Script-driven installer</b> — BIOS/UEFI, GRUB/systemd-boot, LUKS, dualboot, core or full (Hyprland) profiles, all in the terminal.</li>
   <li><b>Signed repository and native tooling</b> — the <code>[x]</code> pacman repository is signed (<code>SigLevel = Required</code>); <a href="https://github.com/equislinux/xpm">xpm</a> (package manager) and <a href="https://github.com/equislinux/xpkg">xpkg</a> (builder) drive a native <code>.xp</code> endpoint end-to-end.</li>
   <li><b>WSL</b> — an importable rootfs plus a friendly first-run setup: <a href="https://github.com/equislinux/wsl">equislinux/wsl</a> and <a href="https://github.com/equislinux/wsl-scripts">wsl-scripts</a>.</li>

@@ -25,7 +25,8 @@ This document summarizes the current state of the X Linux project based on repos
   `x-calamares-config`/`x-live-session` packages.
 - Installation is a script-driven text installer (`airootfs/root/x-installer`):
   BIOS/UEFI, GRUB/systemd-boot, LUKS, dualboot, core/full profiles, optional
-  Hyprland desktop and kernel selection (`linux`, `linux-lts`, `linux-zen`).
+  Hyprland desktop and kernel selection (`linux`, `linux-lts`, `linux-zen`,
+  plus the bundled X kernels `linux-x` and `linux-x-mainline`).
   See `installation.md` and `en|es/installer.md`.
 - Post-install automation lives in `airootfs/root/x-postinstall.sh`.
 - **Generations**: the installer creates `@`/`@home`/`@snapshots`/`@xstate`

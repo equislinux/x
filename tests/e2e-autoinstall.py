@@ -870,7 +870,16 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     ap.add_argument(
         "--kernel",
         default="linux",
-        choices=("linux", "linux-lts", "linux-zen", "linux-hardened", "linux-rt", "linux-rt-lts"),
+        choices=(
+            "linux",
+            "linux-lts",
+            "linux-zen",
+            "linux-hardened",
+            "linux-rt",
+            "linux-rt-lts",
+            "linux-x",
+            "linux-x-mainline",
+        ),
         help="kernel installed by the installer (JSON kernel=...)",
     )
     ap.add_argument(
