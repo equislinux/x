@@ -243,7 +243,8 @@ xpm_prepare_keyring() {
 
 # xpm installs the kernel files under /usr/lib/modules, but mkinitcpio needs
 # the /boot/vmlinuz-* copy and preset that the mkinitcpio ALPM hook normally
-# creates. The xpm path deliberately disables ALPM hooks, so do it explicitly.
+# creates. The local kernel transaction disables ALPM hooks (so the hook's
+# pacman -Qoq is never called), then this helper creates them explicitly.
 xpm_install_local_kernel_boot() {
     local pkgbase="$1" kver
     kver="$(arch-chroot "$MNT" bash -c '
@@ -296,7 +297,7 @@ install_local_x_kernel_xpm() {
     gpg --batch --homedir "$gpgdir" --verify "$main.sig" "$main" >/dev/null
     gpg --batch --homedir "$gpgdir" --verify "$headers.sig" "$headers" >/dev/null
     echo "== installing $KERNEL from the bundled ISO packages (xpm)"
-    "${XPM[@]}" --scriptlets=auto --no-confirm install --needed "$main" "$headers"
+    X_GEN_SKIP=1 "${XPM_NO_HOOKS[@]}" --scriptlets=auto --no-confirm install --needed "$main" "$headers"
     xpm_install_local_kernel_boot "$KERNEL"
 }
 
@@ -533,7 +534,8 @@ if [[ "$BACKEND" == "xpm" ]]; then
     XPM_CACHE="${X_XPM_CACHE:-$MNT/var/cache/xpm/pkg}"
     mkdir -p "$XPM_CACHE" "$MNT/var/lib/xpm" "$MNT/etc/xpm"
     xpm_write_config "$XPM_BOOTSTRAP" "$MNT" "$XPM_CACHE"
-    XPM=(xpm --config "$XPM_BOOTSTRAP" --root "$MNT" --dbpath "$MNT/var/lib/xpm" --cachedir "$XPM_CACHE" --no-shell-integration --no-alpm-hooks)
+    XPM=(xpm --config "$XPM_BOOTSTRAP" --root "$MNT" --dbpath "$MNT/var/lib/xpm" --cachedir "$XPM_CACHE" --no-shell-integration)
+    XPM_NO_HOOKS=("${XPM[@]}" --no-alpm-hooks)
 
     echo "== xpm sync (target databases; official repos + [x])"
     "${XPM[@]}" --scriptlets=skip --no-confirm sync
@@ -543,21 +545,21 @@ if [[ "$BACKEND" == "xpm" ]]; then
         exit 1
     fi
     echo "== xpm phase 1/4 (filesystem + bash)"
-    "${XPM[@]}" --scriptlets=skip --no-confirm install --needed filesystem bash
+    X_GEN_SKIP=1 "${XPM[@]}" --scriptlets=skip --no-confirm install --needed filesystem bash
     xpm_bind_pseudo
     # Preinstall archlinux-keyring without its post_install scriptlet. The
     # native keyring was prepared above, so the scriptlet must not run.
     echo "== xpm phase 2/4 (target keyring package)"
-    "${XPM[@]}" --scriptlets=skip --no-confirm install --needed archlinux-keyring
+    X_GEN_SKIP=1 "${XPM[@]}" --scriptlets=skip --no-confirm install --needed archlinux-keyring
     echo "== xpm phase 3/4 (base package set)"
-    "${XPM[@]}" --scriptlets=auto --no-confirm install --needed base
+    X_GEN_SKIP=1 "${XPM[@]}" --scriptlets=auto --no-confirm install --needed base
     echo "== xpm phase 4/4 (remaining packages)"
-    "${XPM[@]}" --scriptlets=auto --no-confirm install --needed $PKGS
+    X_GEN_SKIP=1 "${XPM[@]}" --scriptlets=auto --no-confirm install --needed $PKGS
 
     echo "== installing x-scripts (offline payload from the live; xpm)"
     XS_PKG="$(ls /root/x-installer/packages/x-scripts-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
     if [[ -n "$XS_PKG" ]]; then
-        "${XPM[@]}" --scriptlets=require --no-confirm install --needed "$XS_PKG"
+        X_GEN_SKIP=1 "${XPM[@]}" --scriptlets=require --no-confirm install --needed "$XS_PKG"
     else
         echo "warning: x-scripts package not found in the live" >&2
     fi
@@ -566,7 +568,7 @@ if [[ "$BACKEND" == "xpm" ]]; then
         XKDE_PKG="$(ls /root/x-installer/packages/x-kde-settings-*.pkg.tar.zst 2>/dev/null | head -1 || true)"
         if [[ -n "$XKDE_PKG" ]]; then
             echo "== installing x-kde-settings (bundled; xpm)"
-            "${XPM[@]}" --scriptlets=require --no-confirm install --needed "$XKDE_PKG"
+            X_GEN_SKIP=1 "${XPM[@]}" --scriptlets=require --no-confirm install --needed "$XKDE_PKG"
         else
             echo "warning: x-kde-settings not found in the live; KDE will use stock Plasma branding" >&2
         fi
