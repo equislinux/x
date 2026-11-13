@@ -248,6 +248,13 @@ install_local_x_kernel() {
         exit 1
     fi
     echo "== installing $KERNEL from the bundled ISO packages"
+    # pacman -U still loads the enabled repos. On the xpm path the target
+    # mirrorlist has not been copied yet, so pacman would fail with
+    # "no servers configured for repository: extra" before installing the
+    # local kernel. Seed it from the live environment first.
+    if [[ -f /etc/pacman.d/mirrorlist ]]; then
+        install -Dm644 /etc/pacman.d/mirrorlist "$MNT/etc/pacman.d/mirrorlist"
+    fi
     cp -f "$main" "$headers" "$MNT/root/"
     arch-chroot "$MNT" pacman -U --noconfirm \
         "/root/$(basename "$main")" "/root/$(basename "$headers")" >/dev/null
