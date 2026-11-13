@@ -11,7 +11,7 @@ graphical installer; Calamares was removed).
 3. **Installer** (`install.sh`):
    - Partitions (GPT: EFI 1G + btrfs; LUKS2 optional) and creates the
      `@`/`@home`/`@snapshots`/`@xstate` subvolumes, mounted at `/mnt`.
-   - `pacstrap`: base + live manifest (includes the `[x]` packages).
+   - xpm or `pacstrap`: base + live manifest (includes the `[x]` packages).
    - Configures locale/hostname, creates the user, and applies branding.
    - Provisions with the **`x-scripts`** package: system phases (`x setup`,
      skipped from creating a generation via `X_GEN_SKIP=1`) and user phases

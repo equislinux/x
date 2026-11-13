@@ -63,7 +63,7 @@ Related documentation in this repository:
 - **Branding.** Identity applied to GRUB (`GRUB_DISTRIBUTOR="X"`), the ISO
   label/publisher, MOTD, and installed packages.
 - **Text installer.** `configurator.sh` collects options and writes a JSON
-  plan; `install.sh` partitions (GPT/btrfs), runs `pacstrap`, configures the
+  plan; `install.sh` partitions (GPT/btrfs), runs xpm or `pacstrap`, configures the
   base system, provisions with `x-scripts`, and installs a bootloader.
 - **Unattended install.** The ISO ships an `autoinstall` boot entry (hotkey
   `a`, `xauto=1`) for a disk labeled `cidata` containing `x-install.json`.

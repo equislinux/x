@@ -86,10 +86,9 @@ the `build-*.log` files.
 
   The *build host* uses `Never` (it may not have the project key). The **live
   ISO and the installed target** use `SigLevel = Required`: the public key
-  ships at `/etc/pacman.d/x-repo.pub`; in the live environment
-  `pacman-init.service` recreates the keyring on tmpfs and `x-keyring.service`
-  imports and locally signs the project key, while `install.sh` prepares the
-  target keyring the same way.
+  ships at `/etc/pacman.d/x-repo.pub`. The xpm backend imports Arch and X keys
+  into the native `/etc/xpm/gnupg` keyring at boot and during install; the
+  pacman backend initializes its own keyring only after the user selects it.
 - The provisioning payload (`x-scripts`) is shipped **offline** inside the ISO
   at `airootfs/root/x-installer/packages/x-scripts-*.pkg.tar.zst`, so the
   installer does not need to fetch it from the network during installation.

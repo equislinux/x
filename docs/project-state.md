@@ -67,5 +67,5 @@ Notable open areas (see also `ROADMAP.md` and `x-repo/docs/`):
 ## Risks and Notes
 
 - Build scripts require `sudo` and assume an Arch-like host environment with required tools installed.
-- The custom repo is signed with the project key: the live ISO and the installed target use `SigLevel = Required` with the key embedded at `/etc/pacman.d/x-repo.pub`; the build host config (`x/pacman.conf`) uses `Never` for `[x]`.
+- The custom repo is signed with the project key: the xpm backend uses the native `/etc/xpm/gnupg` keyring, the pacman backend uses `/etc/pacman.d/gnupg`, and the public key ships at `/etc/pacman.d/x-repo.pub`; the build host config (`x/pacman.conf`) uses `Never` for `[x]`.
 - WSL guidance exists in multiple places; this has now been normalized into `docs/build-wsl.md` for consistency.

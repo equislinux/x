@@ -60,13 +60,13 @@ partes más relevantes:
 | `airootfs/etc/systemd/network/` | Configs de red DHCP (ethernet/wlan/wwan). |
 | `airootfs/etc/systemd/system/` | Unidades de systemd del entorno en vivo, incluidas `x-autoinstall.service` y los servicios auxiliares. |
 | `airootfs/etc/systemd/system/getty@tty1.service.d/autologin.conf` | Autologin de root en TTY1. |
-| `airootfs/etc/systemd/system/etc-pacman.d-gnupg.mount` | Gestión del keyring de archiso. |
+| `airootfs/etc/systemd/system/etc-pacman.d-gnupg.mount` | Montaje tmpfs opcional para pacman-key; xpm usa `/etc/xpm/gnupg`. |
 | `airootfs/root/.automated_script.sh` | Ejecutor de la automatización oficial `script=` de archiso. |
 | `airootfs/root/.zlogin` | Hook de login de zsh que inicia el instalador en TTY1. |
 | `airootfs/etc/systemd/system/multi-user.target.wants/` | Symlinks de habilitación versionados para servicios en vivo (`x-autoinstall`, `x-keyring`, NetworkManager, ...). |
 | `airootfs/root/x-installer/` | El instalador de texto (consulta [Instalador de texto](installer.md)). |
 | `airootfs/root/x-postinstall.sh` | Script de branding de primer arranque antiguo; el instalador actual no lo invoca (el aprovisionamiento va por el payload `x-scripts`). |
-| `airootfs/usr/local/bin/` | Utilidades en vivo: `choose-mirror`, `livecd-sound`, `Installation_guide`, `xinstall`. |
+| `airootfs/usr/local/bin/` | Utilidades en vivo: `choose-mirror`, `livecd-sound`, `Installation_guide`, `xinstall`, `x-repo-key` (keyring nativo de xpm). |
 | `airootfs/usr/local/share/livecd-sound/` | Plantilla de sonido para `livecd-sound`. |
 
 ## `airootfs/root/x-installer/`
@@ -77,7 +77,7 @@ El instalador de texto incluido en la imagen en vivo:
 |---------|-----------|
 | `installer.sh` | Punto de entrada; ejecuta el configurador y después el instalador. |
 | `configurator.sh` | Configuración interactiva (gum/prompts); escribe el plan JSON. |
-| `install.sh` | Realiza el particionado, `pacstrap`, config base, usuario, aprovisionamiento y gestor de arranque. |
+| `install.sh` | Realiza el particionado, instalación con xpm o pacstrap, config base, usuario, aprovisionamiento y gestor de arranque. |
 | `autoinstall.sh` | Instalador desatendido (activado por `xauto=1` + disco `cidata`). |
 | `ui.sh` | Utilidades de interfaz compartidas por los demás scripts. |
 | `packages.x86_64` | Manifiesto por defecto del perfil `full`. |

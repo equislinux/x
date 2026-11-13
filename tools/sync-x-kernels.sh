@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copy the signed X kernel packages from the sibling x-kernel build output into
-# the live ISO. The installer installs them with pacman -U, so the ISO does not
-# depend on SourceForge redirects during an install.
+# the live ISO. The installer installs them with xpm (xpm backend) or pacman -U
+# (pacman backend), so the ISO does not depend on SourceForge redirects.
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
