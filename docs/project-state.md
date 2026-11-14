@@ -68,4 +68,5 @@ Notable open areas (see also `ROADMAP.md` and `x-repo/docs/`):
 
 - Build scripts require `sudo` and assume an Arch-like host environment with required tools installed.
 - The custom repo is signed with the project key: the xpm backend uses the native `/etc/xpm/gnupg` keyring, the pacman backend uses `/etc/pacman.d/gnupg`, and the public key ships at `/etc/pacman.d/x-repo.pub`; the build host config (`x/pacman.conf`) uses `Never` for `[x]`.
+- xpm installs its own keyring and does not invoke pacman in the xpm backend; the pacman backend remains explicit. Full X installs can keep Arch `linux` and an X kernel, with Arch as the default boot entry.
 - WSL guidance exists in multiple places; this has now been normalized into `docs/build-wsl.md` for consistency.
