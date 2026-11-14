@@ -269,7 +269,7 @@ xpm_install_local_kernel_boot() {
             sed "s|%PKGBASE%|$1|g" /usr/share/mkinitcpio/hook.preset > "$preset"
         fi
     ' _ "$pkgbase"
-    arch-chroot "$MNT" depmod -a
+    arch-chroot "$MNT" depmod -a "$kver"
     arch-chroot "$MNT" mkinitcpio -P
     local image
     for image in "/boot/vmlinuz-$pkgbase" "/boot/initramfs-$pkgbase.img"; do
@@ -280,24 +280,29 @@ xpm_install_local_kernel_boot() {
     done
 }
 
-install_local_x_kernel_xpm() {
-    [[ "$KERNEL_LOCAL" == "1" ]] || return 0
-    local dir=/root/x-installer/kernel-packages main headers
-    local gpgdir="$MNT/etc/xpm/gnupg"
-    main="$(find "$dir" -maxdepth 1 -type f -name "$KERNEL-[0-9]*.pkg.tar.zst" -print -quit 2>/dev/null || true)"
-    headers="$(find "$dir" -maxdepth 1 -type f -name "$KERNEL-headers-[0-9]*.pkg.tar.zst" -print -quit 2>/dev/null || true)"
-    if [[ -z "$main" || -z "$headers" ]]; then
-        echo "installer: local $KERNEL packages are missing from the ISO ($dir)" >&2
-        exit 1
+install_kernel_xpm() {
+    local dir=/root/x-installer/kernel-packages main headers gpgdir="$MNT/etc/xpm/gnupg"
+    if [[ "$KERNEL_LOCAL" == "1" ]]; then
+        main="$(find "$dir" -maxdepth 1 -type f -name "$KERNEL-[0-9]*.pkg.tar.zst" -print -quit 2>/dev/null || true)"
+        headers="$(find "$dir" -maxdepth 1 -type f -name "$KERNEL-headers-[0-9]*.pkg.tar.zst" -print -quit 2>/dev/null || true)"
+        if [[ -z "$main" || -z "$headers" ]]; then
+            echo "installer: local $KERNEL packages are missing from the ISO ($dir)" >&2
+            exit 1
+        fi
+        if [[ ! -f "$main.sig" || ! -f "$headers.sig" ]]; then
+            echo "installer: local $KERNEL signatures are missing from the ISO ($dir)" >&2
+            exit 1
+        fi
+        gpg --batch --homedir "$gpgdir" --verify "$main.sig" "$main" >/dev/null
+        gpg --batch --homedir "$gpgdir" --verify "$headers.sig" "$headers" >/dev/null
+        echo "== installing $KERNEL from the bundled ISO packages (xpm)"
+        X_GEN_SKIP=1 "${XPM_NO_HOOKS[@]}" --scriptlets=skip --no-confirm install --needed \
+            --assume-installed initramfs=1 "$main" "$headers"
+    else
+        echo "== installing $KERNEL from the [x]/Arch repositories (xpm, hookless)"
+        X_GEN_SKIP=1 "${XPM_NO_HOOKS[@]}" --scriptlets=skip --no-confirm install --needed \
+            --assume-installed initramfs=1 "$KERNEL" "$KERNEL-headers"
     fi
-    if [[ ! -f "$main.sig" || ! -f "$headers.sig" ]]; then
-        echo "installer: local $KERNEL signatures are missing from the ISO ($dir)" >&2
-        exit 1
-    fi
-    gpg --batch --homedir "$gpgdir" --verify "$main.sig" "$main" >/dev/null
-    gpg --batch --homedir "$gpgdir" --verify "$headers.sig" "$headers" >/dev/null
-    echo "== installing $KERNEL from the bundled ISO packages (xpm)"
-    X_GEN_SKIP=1 "${XPM_NO_HOOKS[@]}" --scriptlets=auto --no-confirm install --needed "$main" "$headers"
     xpm_install_local_kernel_boot "$KERNEL"
 }
 
@@ -320,7 +325,7 @@ install_local_x_kernel_pacman() {
     arch-chroot "$MNT" pacman -U --noconfirm \
         "/root/$(basename "$main")" "/root/$(basename "$headers")" >/dev/null
     rm -f "$MNT/root/$(basename "$main")" "$MNT/root/$(basename "$headers")"
-    arch-chroot "$MNT" depmod -a || true
+    arch-chroot "$MNT" bash -c 'for m in /usr/lib/modules/*; do [ -d "$m" ] && depmod -a "$(basename "$m")"; done' || true
     arch-chroot "$MNT" mkinitcpio -P || true
 }
 
@@ -450,7 +455,13 @@ mount "$EFI" "$MNT/boot"
 
 # Package set per profile.
 EXTRA="base base-devel"
-[[ "$KERNEL_LOCAL" == "1" ]] || EXTRA="$EXTRA $KERNEL $KERNEL-headers"
+# The xpm backend installs every selected kernel in its own hookless
+# transaction (repo or local package) and creates the boot files explicitly.
+# The pacman backend keeps the historical package-list behavior for Arch
+# kernels; local X kernels are installed after pacstrap with pacman -U.
+if [[ "$BACKEND" == "pacman" && "$KERNEL_LOCAL" == "0" ]]; then
+    EXTRA="$EXTRA $KERNEL $KERNEL-headers"
+fi
 EXTRA="$EXTRA linux-firmware mkinitcpio sudo networkmanager openssh git jq x-release x-wallpapers btrfs-progs"
 [[ "$BACKEND" == "xpm" ]] && EXTRA="$EXTRA xpm"
 # Terminal and audio stack are always installed (work without the Hyprland setup).
@@ -521,6 +532,10 @@ else
     pacman-key --gpgdir "$GPGDIR" --add "$LIVE_KEY"
     pacman-key --gpgdir "$GPGDIR" --lsign-key "$X_KEY_FPR"
     install -Dm644 "$LIVE_KEY" "$MNT/etc/pacman.d/x-repo.pub"
+    # xpm-aur is installed on the pacman backend too; it uses xpm's native
+    # keyring and config, not pacman's.
+    xpm_prepare_keyring /etc/xpm/gnupg
+    xpm_prepare_keyring "$MNT/etc/xpm/gnupg"
 
     # Keep the live bootstrap current on the explicit pacman backend.
     installer_progress "Updating live xpm"
@@ -576,13 +591,14 @@ if [[ "$BACKEND" == "xpm" ]]; then
 
     mkdir -p "$MNT/var/lib/xpm"
     xpm_write_config "$MNT/etc/xpm.conf" "/" "/var/cache/xpm/pkg"
+    arch-chroot "$MNT" xpm --no-confirm sync
 
     xpm_check_target_backend
     # A transaction killed by a live-environment reboot can leave a stale xpm
     # lock; the install is complete and no xpm transaction is running.
     rm -f "$MNT/var/lib/xpm/transaction.lock"
 
-    install_local_x_kernel_xpm
+    install_kernel_xpm
 
     TARGET_XPM_QUERY="/tmp/target-xpm-query.$$"
     if ! arch-chroot "$MNT" xpm query > "$TARGET_XPM_QUERY" 2>/dev/null; then
@@ -615,7 +631,7 @@ if [[ "$BACKEND" == "xpm" ]]; then
     if arch-chroot "$MNT" test -x /usr/bin/update-ca-trust; then
         arch-chroot "$MNT" update-ca-trust
     fi
-    arch-chroot "$MNT" depmod -a
+    arch-chroot "$MNT" bash -c 'for m in /usr/lib/modules/*; do [ -d "$m" ] && depmod -a "$(basename "$m")"; done'
     arch-chroot "$MNT" mkinitcpio -P
     for image in "/boot/vmlinuz-$KERNEL" "/boot/initramfs-$KERNEL.img"; do
         if ! arch-chroot "$MNT" test -f "$image"; then
@@ -629,6 +645,12 @@ else
     # PACMAN-BACKEND-BEGIN
     echo "== pacstrap (online; official repos + [x])"
     pacstrap "$MNT" $PKGS
+
+    # xpm-aur is also present on the pacman backend; give xpm a native
+    # x/core/extra config and keyring so AUR tools do not fall back to a
+    # missing /etc/xpm.conf or pacman's keyring.
+    xpm_write_config "$MNT/etc/xpm.conf" "/" "/var/cache/xpm/pkg"
+    arch-chroot "$MNT" xpm --no-confirm sync
 
     echo "== installing x-scripts (offline payload from the live)"
     XS_PKG="$(ls /root/x-installer/packages/x-scripts-*.pkg.tar.zst 2>/dev/null | head -1 || true)"

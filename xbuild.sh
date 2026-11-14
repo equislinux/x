@@ -21,6 +21,11 @@ fi
 # 2) Clean work/ and out/
 sudo rm -rf work out
 
+# Refresh cached [x]/X packages: rebuilt packages with the same version can
+# have different signatures/checksums, and an old pacman cache entry would
+# abort the live install with "invalid or corrupted package".
+sudo rm -f /var/cache/pacman/pkg/x-*.pkg.tar.zst     /var/cache/pacman/pkg/x-*.pkg.tar.zst.sig
+
 # 3) Bundle the signed X kernels in the live installer payload
 if [[ -x ./tools/sync-x-kernels.sh ]]; then
   ./tools/sync-x-kernels.sh
