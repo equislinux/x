@@ -44,6 +44,6 @@
 <hr />
 
 <div align="center">
-  <p><i>By contributing, you agree that your code will be licensed under the project's respective licenses (MIT for build scripts and configuration).</i></p>
+  <p><i>By contributing, you agree that your code will be licensed under the project's respective licenses (GPL-3.0-or-later for build scripts and configuration).</i></p>
   <p><b>Thank you for helping us improve X Linux!</b></p>
 </div>
