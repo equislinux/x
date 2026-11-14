@@ -77,7 +77,9 @@ to plain text prompts otherwise (`ui.sh`).
 | Install Xscriptor AI agents | yes/no (requires network) | `agents` (`yes`/`no`) |
 | Install virtualization | yes/no (QEMU/KVM + libvirt + virt-manager GUI) | `virtualization` (`yes`/`no`) |
 
-The `linux-x` and `linux-x-mainline` options are additional kernels, not replacements. Their signed packages are bundled in the ISO. The xpm backend verifies their detached signatures with gpg against the native `/etc/xpm/gnupg` keyring and installs them with `xpm install <local-package>`; the pacman backend uses `pacman -U`. Arch kernels still come from the online repositories.
+The `linux-x` and `linux-x-mainline` options are additional kernels, not replacements. Their signed packages are bundled in the ISO. The xpm backend verifies their detached signatures with gpg against the native `/etc/xpm/gnupg` keyring and installs them with `xpm install <local-package>`; the pacman backend uses `pacman -U`. Arch kernels still come from the online repositories. A full-profile X install also keeps Arch `linux` from the package manifest, so both entries can appear and Arch remains the default; a core X install may contain only the selected X kernel.
+
+xpm renders progress per phase: downloads use `[xxxx]`, while verification, install and removal use `[////]`. There is no combined download/verify/extract line. xpm-aur uses `x` for sync/resolve and `/` for build/install.
 
 Language-to-locale mapping used by the configurator:
 
