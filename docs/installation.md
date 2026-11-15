@@ -9,7 +9,8 @@ graphical installer; Calamares was removed).
 2. **Configurator** (`configurator.sh`): selects the disk, hostname, and user
    (UI via `gum`; falls back to plain prompts if unavailable). Writes `/tmp/x-install.json`.
 3. **Installer** (`install.sh`):
-   - Partitions (GPT: EFI 1G + btrfs; LUKS2 optional) and creates the
+   - Partitions (GPT: EFI 2G by default, 4/6/8/10G manual + btrfs; LUKS2
+     optional) and creates the
      `@`/`@home`/`@snapshots`/`@xstate` subvolumes, mounted at `/mnt`.
    - xpm or `pacstrap`: base + live manifest (includes the `[x]` packages).
    - Configures locale/hostname, creates the user, and applies branding.

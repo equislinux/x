@@ -262,7 +262,7 @@ class E2E:
             f'"disk":"/dev/vda","hostname":"{self.args.hostname}",'
             f'"username":"{self.args.user}","password":"{self.args.password}",'
             f'"profile":"{self.args.profile}","bootloader":"{self.args.bootloader}",'
-            f'"kernel":"{self.args.kernel}",'
+            f'"esp_size":"{self.args.esp_size}","kernel":"{self.args.kernel}",'
             f'"encryption":"{self.args.encryption}","hyprland":"{hypr}",'
             f'"desktop":"{desktop}","agents":"{agents}","virtualization":"{virt}",'
             f'"backend":"{self.args.backend}"{luks},'
@@ -485,6 +485,25 @@ class E2E:
         self.wait_shell()
         log("re-login after reboot OK")
 
+    def verify_esp_size(self) -> None:
+        """Assert the installed ESP has the requested size."""
+        expected = self.args.esp_size * 1024**3
+        seg = self.sudo_expect(
+            'blockdev --getsize64 "$(findmnt -no SOURCE /boot)"',
+            "E2E_ESP_BYTES",
+            60,
+        )
+        matches = re.findall(r"(?m)^\s*(\d+)\s*$", seg)
+        if not matches:
+            raise E2EError(f"could not read the ESP size:\n{seg[-600:]}")
+        actual = int(matches[-1])
+        if abs(actual - expected) > 8 * 1024**2:
+            raise E2EError(
+                f"ESP size is {actual} bytes, expected {expected} "
+                f"({self.args.esp_size} GiB):\n{seg[-600:]}"
+            )
+        log(f"ESP size OK: {actual} bytes ({self.args.esp_size} GiB)")
+
     def verify_payload(self) -> None:
         """Assert the base tools (and the desktop payload when requested)."""
         user = self.args.user
@@ -599,6 +618,7 @@ class E2E:
         self.console.send(f"{self.args.password}\n")
         self.wait_shell()
         log("logged in on the serial console")
+        self.verify_esp_size()
         self.verify_payload()
 
         self.console.send("sudo x gen status; echo E2E_STATUS\" \"_END\n")
@@ -883,6 +903,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         help="override the [x] repo URL for the xpm backend (X_XPM_X_REPO)",
     )
     ap.add_argument("--bootloader", default="grub", choices=("grub", "systemd-boot"))
+    ap.add_argument(
+        "--esp-size",
+        type=int,
+        default=2,
+        choices=range(1, 11),
+        metavar="GIB",
+        help="EFI System Partition size for full-disk installs (JSON esp_size=...)",
+    )
     ap.add_argument(
         "--kernel",
         default="linux",

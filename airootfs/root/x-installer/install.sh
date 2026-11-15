@@ -47,6 +47,7 @@ AGENTS="$(jget agents)";              AGENTS="${AGENTS:-no}"
 VIRT="$(jget virtualization)";        VIRT="${VIRT:-no}"
 case "$VIRT" in yes|no) ;; *) VIRT="no" ;; esac
 MODE="$(jget mode)";                  MODE="${MODE:-wipe}"
+ESP_SIZE="$(jget esp_size)";          ESP_SIZE="${ESP_SIZE:-2}"
 ESP_OVERRIDE="$(jget esp)"
 MIN_SIZE="$(jget min_size)";          MIN_SIZE="${MIN_SIZE:-20}"
 KERNEL="$(jget kernel)";              KERNEL="${KERNEL:-linux}"
@@ -64,6 +65,7 @@ case "$BACKEND" in
     *) echo "installer: invalid backend '$BACKEND' (pacman|xpm)" >&2; exit 1 ;;
 esac
 [[ "$MODE" == "wipe" || "$MODE" == "dualboot" ]] || { echo "installer: invalid mode '$MODE' (wipe|dualboot)" >&2; exit 1; }
+[[ "$ESP_SIZE" =~ ^([1-9]|10)$ ]] || { echo "installer: esp_size must be an integer from 1 to 10 GiB" >&2; exit 1; }
 [[ "$MIN_SIZE" =~ ^[0-9]+$ ]] || { echo "installer: min_size must be a number of GiB" >&2; exit 1; }
 case "$KERNEL" in
     linux|linux-lts|linux-zen|linux-hardened|linux-rt|linux-rt-lts|linux-x|linux-x-mainline) ;;
@@ -84,8 +86,10 @@ if [[ "$DRY" == "1" ]]; then
     echo "install plan:"
     if [[ "$MODE" == "dualboot" ]]; then
         echo "  disk:      $DISK (dualboot: free space only, existing partitions preserved)"
+        echo "  esp:       existing ESP (reused, never resized)"
     else
         echo "  disk:      $DISK (will be erased)"
+        echo "  esp:       ${ESP_SIZE} GiB (new EFI System Partition)"
     fi
     echo "  mode:      $MODE (min free: ${MIN_SIZE} GiB)"
     echo "  hostname:  $HOST"
@@ -402,12 +406,14 @@ if [[ "$MODE" == "dualboot" ]]; then
     sleep 2
 else
     sgdisk --zap-all "$DISK"
+    # ESP size is user-selectable for full-disk installs. Keep the 1 MiB
+    # BIOS boot partition in GRUB mode and leave the rest for btrfs.
     if [[ "$BOOT" == "grub" ]]; then
-        sgdisk -n 1:0:+1M -t 1:ef02 -n 2:0:+1G -t 2:ef00 -n 3:0:0 -t 3:8300 "$DISK"
+        sgdisk -n 1:0:+1M -t 1:ef02 -n 2:0:+"${ESP_SIZE}"G -t 2:ef00 -n 3:0:0 -t 3:8300 "$DISK"
         EFI="$(partdev "$DISK")2"
         ROOTP="$(partdev "$DISK")3"
     else
-        sgdisk -n 1:0:+1G -t 1:ef00 -n 2:0:0 -t 2:8300 "$DISK"
+        sgdisk -n 1:0:+"${ESP_SIZE}"G -t 1:ef00 -n 2:0:0 -t 2:8300 "$DISK"
         EFI="$(partdev "$DISK")1"
         ROOTP="$(partdev "$DISK")2"
     fi

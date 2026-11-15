@@ -58,6 +58,12 @@ check "the live xpm configuration uses the native keyring" \
     python3 -c 'import sys, tomllib; o = tomllib.load(open(sys.argv[1], "rb"))["options"]; assert o["root_dir"] == "/"; assert o["db_path"] == "/var/lib/xpm"; assert o["cache_dir"] == "/var/cache/xpm/pkg"; assert o["gpg_dir"] == "/etc/xpm/gnupg"; assert "pacman_db" not in o; assert o["mirror_pacman"] is False; assert o["shell_integration"] is False; assert o["sig_level"] == "required"' "$SRC/airootfs/etc/xpm.conf"
 check "the live xpm configuration trusts x, core and extra" \
     python3 -c 'import sys, tomllib; r = tomllib.load(open(sys.argv[1], "rb"))["repo"]; assert [x["name"] for x in r[:3]] == ["x", "core", "extra"]; assert r[0]["server"] == ["https://equislinux.github.io/x-repo/repo/x86_64"]; assert r[0]["sig_level"] == "required"; assert all("$repo" in x["server"][0] and "$arch" in x["server"][0] for x in r[1:3])' "$SRC/airootfs/etc/xpm.conf"
+check "configurator offers automatic and manual ESP sizing" \
+    bash -c "grep -q 'EFI System Partition size' '$CONF' && grep -q 'Manual (choose 4, 6, 8 or 10 GiB)' '$CONF'"
+check "install.sh reads and validates esp_size" \
+    bash -c "grep -q 'jget esp_size' '$INST' && grep -q 'esp_size must be an integer from 1 to 10 GiB' '$INST'"
+check "partitioning uses the configured ESP size" \
+    bash -c "! grep -q ':+1G' '$INST' && grep -q ':+\"\\\${ESP_SIZE}\"G' '$INST'"
 check "install.sh reads the backend from the JSON seed" \
     grep -q 'jget backend' "$INST"
 check "install.sh accepts X_INSTALL_BACKEND and defaults to pacman" \
@@ -112,6 +118,12 @@ check "the xpm backend finalizes the target before genfstab" \
     bash -c "grep -q 'depmod -a' '$INST' && grep -q 'mkinitcpio -P' '$INST'"
 check "e2e harness exposes --backend" \
     grep -q -- '"--backend"' "$SRC/tests/e2e-autoinstall.py"
+check "e2e harness exposes --esp-size" \
+    grep -q -- '"--esp-size"' "$SRC/tests/e2e-autoinstall.py"
+check "e2e harness seeds esp_size" \
+    grep -q '"esp_size":"{self.args.esp_size}"' "$SRC/tests/e2e-autoinstall.py"
+check "e2e harness verifies the installed ESP size" \
+    grep -q 'def verify_esp_size' "$SRC/tests/e2e-autoinstall.py"
 check "e2e harness seeds the backend" \
     grep -q '"backend":"{self.args.backend}"' "$SRC/tests/e2e-autoinstall.py"
 check "e2e harness uses xpm query for the xpm backend" \

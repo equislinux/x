@@ -57,6 +57,26 @@ select_one MODE "Install mode" \
     "Dualboot (use free space, keep existing OS)"
 [[ "$MODE" == "Dualboot (use free space, keep existing OS)" ]] && MODE="dualboot" || MODE="wipe"
 
+# EFI System Partition size for full-disk installs. Dualboot always reuses the
+# existing ESP, so this prompt is skipped there. The automatic default is 2
+# GiB; manual sizing covers the useful range up to 10 GiB.
+ESP_SIZE="2"
+if [[ "$MODE" == "wipe" ]]; then
+    ESP_CHOICE=""
+    select_one ESP_CHOICE "EFI System Partition size" \
+        "Auto (2 GiB, recommended)" \
+        "Manual (choose 4, 6, 8 or 10 GiB)"
+    if [[ "$ESP_CHOICE" == Manual* ]]; then
+        ESP_MANUAL=""
+        ESP_SIZE=""
+        while [[ ! "$ESP_SIZE" =~ ^([1-9]|10)$ ]]; do
+            select_one ESP_MANUAL "Manual EFI System Partition size" \
+                "4 GiB" "6 GiB" "8 GiB" "10 GiB"
+            ESP_SIZE="${ESP_MANUAL%% *}"
+        done
+    fi
+fi
+
 # Package manager for the target base system.
 BACKEND=""
 select_one BACKEND "Package manager for the base system" \
@@ -200,8 +220,8 @@ VIRT="no"
 confirm_yes "Install the virtualization stack (QEMU/KVM + libvirt + virt-manager GUI)?" n && VIRT="yes"
 
 if [[ "$DRY" == "1" ]]; then
-    printf '{"disk":"%s","mode":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","kernel":"%s","kernel_params":"%s","encryption":"%s","hyprland":"%s","desktop":"%s","agents":"%s","virtualization":"%s"}\n' \
-        "$DISK" "$MODE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$KERNEL" "$KERNEL_PARAMS" "$ENC" "$HYPR" "$DESKTOP" "$AGENTS" "$VIRT"
+    printf '{"disk":"%s","mode":"%s","esp_size":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","kernel":"%s","kernel_params":"%s","encryption":"%s","hyprland":"%s","desktop":"%s","agents":"%s","virtualization":"%s"}\n' \
+        "$DISK" "$MODE" "$ESP_SIZE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$KERNEL" "$KERNEL_PARAMS" "$ENC" "$HYPR" "$DESKTOP" "$AGENTS" "$VIRT"
     exit 0
 fi
 
@@ -218,7 +238,7 @@ else
 fi
 
 cat > "$OUT" <<EOF
-{"disk":"$DISK","mode":"$MODE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","backend":"$BACKEND","bootloader":"$BOOT","kernel":"$KERNEL","kernel_params":"$KERNEL_PARAMS","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","desktop":"$DESKTOP","agents":"$AGENTS","virtualization":"$VIRT"}
+{"disk":"$DISK","mode":"$MODE","esp_size":"$ESP_SIZE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","backend":"$BACKEND","bootloader":"$BOOT","kernel":"$KERNEL","kernel_params":"$KERNEL_PARAMS","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","desktop":"$DESKTOP","agents":"$AGENTS","virtualization":"$VIRT"}
 EOF
 chmod 600 "$OUT"
 echo "configuration written to $OUT"

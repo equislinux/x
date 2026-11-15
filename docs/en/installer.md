@@ -61,6 +61,7 @@ to plain text prompts otherwise (`ui.sh`).
 | Step | Options | Stored value |
 |------|---------|--------------|
 | Disk | any block device of type `disk` (from `lsblk`) | `disk` (e.g. `/dev/sda`) |
+| ESP size (wipe only) | `Auto (2 GiB)` or manual `4`, `6`, `8`, `10` GiB | `esp_size` (GiB; `1`–`10` via JSON) |
 | System language | English, Español, Deutsch, Français | `language` + `locale` |
 | Keyboard layout | `us`, `es`, `de`, `fr`, `uk`, `latam`, `br-abnt2` | `keyboard` |
 | Timezone | `UTC`, `Europe/Madrid`, `Europe/London`, `Europe/Berlin`, `America/Mexico_City`, `America/Argentina/Buenos_Aires`, `America/Los_Angeles`, `Asia/Tokyo` | `timezone` |
@@ -98,7 +99,7 @@ Before writing the config, the configurator asks for final confirmation that
 everything on the selected disk will be erased. The resulting JSON looks like:
 
 ```json
-{"disk":"/dev/sda","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","encryption":"no","luks_password":"","hyprland":"no","desktop":"none","agents":"no","virtualization":"no"}
+{"disk":"/dev/sda","mode":"wipe","esp_size":"2","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","encryption":"no","luks_password":"","hyprland":"no","desktop":"none","agents":"no","virtualization":"no"}
 ```
 
 The JSON is written to the path in `X_CONFIG_OUT` (default
@@ -110,9 +111,10 @@ are required; the remaining keys have sensible defaults when absent.
 1. **Parse and validate** the JSON (`disk`, `hostname`, `username`), require
    root and a real block device.
 2. **Partition** with GPT (`sgdisk --zap-all` first):
-   - `grub`: 1 MiB `bios_grub` partition, 1 GiB EFI partition, rest = root.
-   - `systemd-boot`: 1 GiB EFI partition, rest = root.
-   (1 GiB leaves room for several generations of boot entries.)
+   - `grub`: 1 MiB `bios_grub` partition, `${esp_size}` GiB EFI partition, rest = root.
+   - `systemd-boot`: `${esp_size}` GiB EFI partition, rest = root.
+   The automatic default is 2 GiB; the configurator offers manual 4, 6, 8 or 10 GiB
+   (JSON accepts 1–10 GiB). Dualboot reuses the existing ESP and never resizes it.
 3. **LUKS** (if `encryption=yes`): `cryptsetup luksFormat --type luks2` on the
    root partition (passphrase from `luks_password`, falling back to the user
    password) and open it as `/dev/mapper/xroot`.

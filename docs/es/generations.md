@@ -9,7 +9,8 @@ solo el lado del instalador; el motor, la CLI y la semántica viven en
 
 ## Layout de disco
 
-GPT con una partición EFI de 1G (lugar para varias generaciones de entries) y
+GPT con una partición EFI configurable (2G por defecto; las instalaciones de
+1G y 512M siguen funcionando) y
 una partición raíz btrfs (dentro de LUKS2 si el cifrado está habilitado):
 
 | Subvolumen | Montaje | Contenido |
@@ -68,9 +69,10 @@ gestor de arranque.
 
 - `btrfs-progs` en el destino (ya está en `packages.x86_64` y en la lista de
   paquetes del live).
-- Tamaño del ESP: 1G es el default en instalaciones nuevas (las instalaciones
-  viejas de 512M siguen funcionando; por defecto cada generación tiene su
-  entry y `X_GEN_BOOT_KEEP` permite limitar el menú a las N más recientes si
-  el ESP es pequeño).
+- Tamaño del ESP: 2G es el default en instalaciones nuevas (el instalador
+  también ofrece 4/6/8/10G manual; las instalaciones viejas de 1G y 512M
+  siguen funcionando). Por defecto cada generación tiene su entry y
+  `X_GEN_BOOT_KEEP` permite limitar el menú a las N más recientes si el ESP es
+  pequeño.
 - El payload registra generaciones solo si la raíz es btrfs; en otros setups
   cada hook es no-op y `x gen` reporta que no están disponibles.
