@@ -58,6 +58,16 @@ check "the live xpm configuration uses the native keyring" \
     python3 -c 'import sys, tomllib; o = tomllib.load(open(sys.argv[1], "rb"))["options"]; assert o["root_dir"] == "/"; assert o["db_path"] == "/var/lib/xpm"; assert o["cache_dir"] == "/var/cache/xpm/pkg"; assert o["gpg_dir"] == "/etc/xpm/gnupg"; assert "pacman_db" not in o; assert o["mirror_pacman"] is False; assert o["shell_integration"] is False; assert o["sig_level"] == "required"' "$SRC/airootfs/etc/xpm.conf"
 check "the live xpm configuration trusts x, core and extra" \
     python3 -c 'import sys, tomllib; r = tomllib.load(open(sys.argv[1], "rb"))["repo"]; assert [x["name"] for x in r[:3]] == ["x", "core", "extra"]; assert r[0]["server"] == ["https://equislinux.github.io/x-repo/repo/x86_64"]; assert r[0]["sig_level"] == "required"; assert all("$repo" in x["server"][0] and "$arch" in x["server"][0] for x in r[1:3])' "$SRC/airootfs/etc/xpm.conf"
+check "configurator offers NVIDIA auto/yes/no" \
+    bash -c "grep -q 'NVIDIA GPU drivers' '$CONF' && grep -q 'Auto (detect NVIDIA GPU)' '$CONF' && grep -q 'Yes (install proprietary DKMS)' '$CONF'"
+check "install.sh reads and validates nvidia" \
+    bash -c "grep -q 'jget nvidia' '$INST' && grep -q 'invalid nvidia' '$INST'"
+check "NVIDIA install selects DKMS" \
+    grep -q 'nvidia-dkms' "$INST"
+check "NVIDIA install selects kernel headers" \
+    grep -Fq 'headers="${KERNEL}-headers"' "$INST"
+check "NVIDIA fixes the display-manager race" \
+    bash -c "test -f '$SRC/airootfs/root/x-installer/x-nvidia-ready.service' && grep -q 'Before=display-manager.service' '$SRC/airootfs/root/x-installer/x-nvidia-ready.service' && grep -q 'NVIDIA_CMDLINE' '$INST'"
 check "configurator offers automatic and manual ESP sizing" \
     bash -c "grep -q 'EFI System Partition size' '$CONF' && grep -q 'Manual (choose 4, 6, 8 or 10 GiB)' '$CONF'"
 check "install.sh reads and validates esp_size" \
@@ -124,6 +134,10 @@ check "e2e expects the post-first-boot generation" \
     bash -c "grep -q 'INSTALL_GENERATION = \"0001\"' '$SRC/tests/e2e-autoinstall.py' && grep -q 'FIRST_BOOT_GENERATION = \"0002\"' '$SRC/tests/e2e-autoinstall.py'"
 check "e2e harness exposes --backend" \
     grep -q -- '"--backend"' "$SRC/tests/e2e-autoinstall.py"
+check "e2e harness exposes --nvidia" \
+    grep -q -- '"--nvidia"' "$SRC/tests/e2e-autoinstall.py"
+check "e2e harness seeds nvidia" \
+    grep -q '"nvidia":"{self.args.nvidia}"' "$SRC/tests/e2e-autoinstall.py"
 check "e2e harness exposes --esp-size" \
     grep -q -- '"--esp-size"' "$SRC/tests/e2e-autoinstall.py"
 check "e2e harness seeds esp_size" \

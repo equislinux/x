@@ -72,11 +72,14 @@ to plain text prompts otherwise (`ui.sh`).
 | Package backend | `pacman (stable, production)` / `xpm (native X)` | `backend` (`pacman`/`xpm`) |
 | Bootloader | `GRUB (BIOS + UEFI)` / `systemd-boot (UEFI only)` | `bootloader` (`grub`/`systemd-boot`) |
 | Kernel | `linux (Arch stable)` / `linux-lts (Arch longterm)` / `linux-zen (Arch desktop)` / `linux-x (X stable)` / `linux-x-mainline (X mainline)` | `kernel` (`linux`/`linux-lts`/`linux-zen`/`linux-x`/`linux-x-mainline`; `linux-hardened`, `linux-rt`, `linux-rt-lts` accepted via JSON) |
+| NVIDIA drivers | `Auto (detect)` / `Yes (proprietary DKMS)` / `No` | `nvidia` (`auto`/`yes`/`no`; default `no` when the key is absent) |
 | Root encryption (LUKS) | yes/no | `encryption` (`yes`/`no`) |
 | LUKS passphrase | reuse user password or dedicated | `luks_password` |
 | Desktop environment | Hyprland (online) / Niri (online) / KDE Plasma (online) / None | `desktop` (`hyprland`/`niri`/`kde`/`none`); `hyprland` (`yes`/`online`/`no`) is the legacy key |
 | Install Xscriptor AI agents | yes/no (requires network) | `agents` (`yes`/`no`) |
 | Install virtualization | yes/no (QEMU/KVM + libvirt + virt-manager GUI) | `virtualization` (`yes`/`no`) |
+
+The NVIDIA option installs `nvidia-dkms`, `nvidia-utils`, `nvidia-settings`, `opencl-nvidia`, `egl-wayland` and `libva-nvidia-driver` with the headers for the selected kernel. It adds the NVIDIA modules to the initramfs, writes `nvidia-drm.modeset=1 nvidia-drm.fbdev=1` to the kernel command line, and enables `x-nvidia-ready.service` so `nvidia_drm` is loaded before the display manager. `Auto` only triggers when an NVIDIA VGA/3D controller is detected. Secure Boot with unsigned DKMS modules, hybrid PRIME setups and `linux-x-mainline` need manual attention; a failed NVIDIA setup is reported but does not abort the base installation.
 
 The `linux-x` and `linux-x-mainline` options are additional kernels, not replacements. Their signed packages are bundled in the ISO. The xpm backend verifies their detached signatures with gpg against the native `/etc/xpm/gnupg` keyring and installs them with `xpm install <local-package>`; the pacman backend uses `pacman -U`. Arch kernels still come from the online repositories. A full-profile X install also keeps Arch `linux` from the package manifest, so both entries can appear and Arch remains the default; a core X install may contain only the selected X kernel.
 
@@ -99,7 +102,7 @@ Before writing the config, the configurator asks for final confirmation that
 everything on the selected disk will be erased. The resulting JSON looks like:
 
 ```json
-{"disk":"/dev/sda","mode":"wipe","esp_size":"2","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","encryption":"no","luks_password":"","hyprland":"no","desktop":"none","agents":"no","virtualization":"no"}
+{"disk":"/dev/sda","mode":"wipe","esp_size":"2","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","nvidia":"auto","encryption":"no","luks_password":"","hyprland":"no","desktop":"none","agents":"no","virtualization":"no"}
 ```
 
 The JSON is written to the path in `X_CONFIG_OUT` (default
@@ -181,8 +184,9 @@ are required; the remaining keys have sensible defaults when absent.
       (repos, plugins and the settings merge) and fetches the app configs
       from `xscriptor-colors`; if it fails, the installer falls back to the
       bundled snapshot.
-    NVIDIA is owned by the system hardware phase; the tool falls back to the
-    upstream equisdots NVIDIA setup only if a GPU is present without a driver.
+    NVIDIA drivers are installed by the installer when `nvidia=yes` or when
+    `auto` detects a GPU. The desktop tool only falls back to the upstream
+    equisdots NVIDIA setup if a GPU is present without a driver.
 12. **Initramfs (LUKS only)**: replace `HOOKS` in `mkinitcpio.conf` to include
     the `encrypt` hook and rebuild with `mkinitcpio -P`.
 13. **Branding**: `x-release-apply` (from `x-release`) is run *before* the

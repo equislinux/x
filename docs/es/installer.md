@@ -73,11 +73,14 @@ cae a prompts de texto plano en caso contrario (`ui.sh`).
 | Backend de paquetes | `pacman (stable, production)` / `xpm (native X)` | `backend` (`pacman`/`xpm`) |
 | Gestor de arranque | `GRUB (BIOS + UEFI)` / `systemd-boot (UEFI only)` | `bootloader` (`grub`/`systemd-boot`) |
 | Kernel | `linux (Arch stable)` / `linux-lts (Arch longterm)` / `linux-zen (Arch desktop)` / `linux-x (X stable)` / `linux-x-mainline (X mainline)` | `kernel` (`linux`/`linux-lts`/`linux-zen`/`linux-x`/`linux-x-mainline`; `linux-hardened`, `linux-rt`, `linux-rt-lts` aceptados vía JSON) |
+| Drivers NVIDIA | `Auto (detectar)` / `Sí (DKMS propietario)` / `No` | `nvidia` (`auto`/`yes`/`no`; por defecto `no` si falta la clave) |
 | Cifrado de raíz (LUKS) | sí/no | `encryption` (`yes`/`no`) |
 | Passphrase LUKS | reutilizar la del usuario o una dedicada | `luks_password` |
 | Entorno de escritorio | Hyprland (online) / Niri (online) / KDE Plasma (online) / Ninguno | `desktop` (`hyprland`/`niri`/`kde`/`none`); `hyprland` (`yes`/`online`/`no`) es la clave legacy |
 | Instalar los agentes IA de Xscriptor | sí/no (requiere red) | `agents` (`yes`/`no`) |
 | Instalar virtualización | sí/no (QEMU/KVM + libvirt + GUI virt-manager) | `virtualization` (`yes`/`no`) |
+
+La opción NVIDIA instala `nvidia-dkms`, `nvidia-utils`, `nvidia-settings`, `opencl-nvidia`, `egl-wayland` y `libva-nvidia-driver` junto con los headers del kernel elegido. Añade los módulos NVIDIA al initramfs, escribe `nvidia-drm.modeset=1 nvidia-drm.fbdev=1` en la línea de comandos del kernel y habilita `x-nvidia-ready.service` para cargar `nvidia_drm` antes del gestor de inicio de sesión. `Auto` solo se activa si detecta una GPU NVIDIA. Secure Boot con módulos DKMS sin firmar, equipos híbridos con PRIME y `linux-x-mainline` necesitan atención manual; si NVIDIA falla se avisa pero no se aborta la instalación base.
 
 Las opciones `linux-x` y `linux-x-mainline` son kernels adicionales, no sustitutos. Sus paquetes firmados van incluidos en la ISO. El backend xpm verifica sus firmas detached con gpg contra el keyring nativo `/etc/xpm/gnupg` y los instala con `xpm install <paquete-local>`; el backend pacman usa `pacman -U`. Los kernels Arch siguen viniendo de los repositorios online. Una instalación X con perfil full conserva además Arch `linux` del manifiesto, así que pueden aparecer ambas entradas y Arch sigue siendo el default; una instalación core puede contener solo el kernel X elegido.
 
@@ -102,7 +105,7 @@ final de que todo lo que haya en el disco seleccionado será borrado. El JSON
 resultante tiene este aspecto:
 
 ```json
-{"disk":"/dev/sda","mode":"wipe","esp_size":"2","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","encryption":"no","luks_password":"","hyprland":"no","desktop":"none","agents":"no","virtualization":"no"}
+{"disk":"/dev/sda","mode":"wipe","esp_size":"2","hostname":"x","username":"x","password":"secret","language":"en","locale":"en_US.UTF-8","keyboard":"us","timezone":"UTC","profile":"full","bootloader":"grub","kernel":"linux","nvidia":"auto","encryption":"no","luks_password":"","hyprland":"no","desktop":"none","agents":"no","virtualization":"no"}
 ```
 
 El JSON se escribe en la ruta de `X_CONFIG_OUT` (por defecto
@@ -189,8 +192,9 @@ están.
       (opcionalmente fijado con `hyprland_ref`), ejecuta su `dots install`
       oficial (repos, plugins y merge de settings) y descarga las configs de
       apps desde `xscriptor-colors`; si falla, el instalador cae al snapshot.
-    NVIDIA lo gestiona la fase de hardware del sistema; la herramienta recurre
-    al setup NVIDIA de equisdots únicamente si hay GPU y ningún driver
+    Los drivers NVIDIA los instala el instalador con `nvidia=yes` o cuando
+    `auto` detecta una GPU. La herramienta de escritorio solo recurre al setup
+    NVIDIA de equisdots si hay GPU y ningún driver
     instalado.
 12. **Initramfs (solo LUKS)**: sustituir `HOOKS` en `mkinitcpio.conf` para
     incluir el hook `encrypt` y reconstruir con `mkinitcpio -P`.

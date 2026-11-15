@@ -14,6 +14,9 @@ graphical installer; Calamares was removed).
      `@`/`@home`/`@snapshots`/`@xstate` subvolumes, mounted at `/mnt`.
    - xpm or `pacstrap`: base + live manifest (includes the `[x]` packages).
    - Configures locale/hostname, creates the user, and applies branding.
+   - With `nvidia=yes` (or `auto` on detected NVIDIA hardware) installs the
+     DKMS driver set, embeds the modules in initramfs, adds the DRM kernel
+     parameters and orders `nvidia_drm` before the display manager.
    - Provisions with the **`x-scripts`** package: system phases (`x setup`,
      skipped from creating a generation via `X_GEN_SKIP=1`) and user phases
      (`x setup --user`; the Hyprland setup is deferred to first boot,

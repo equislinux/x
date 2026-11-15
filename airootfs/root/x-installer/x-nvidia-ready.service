@@ -1,0 +1,14 @@
+[Unit]
+Description=Load the NVIDIA DRM module before the display manager
+Documentation=man:modprobe(8)
+After=systemd-modules-load.service
+Before=display-manager.service
+ConditionPathExists=/usr/lib/modules
+
+[Service]
+Type=oneshot
+ExecStart=-/usr/bin/modprobe nvidia_drm
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

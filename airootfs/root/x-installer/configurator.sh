@@ -173,6 +173,20 @@ case "$KERNEL" in
     *)                             KERNEL="linux" ;;
 esac
 
+# NVIDIA is opt-in because proprietary kernel modules have Secure Boot,
+# hybrid-GPU and mainline-kernel caveats. "Auto" only installs when the live
+# environment sees an NVIDIA VGA/3D controller.
+NVIDIA=""
+select_one NVIDIA "NVIDIA GPU drivers" \
+    "Auto (detect NVIDIA GPU)" \
+    "Yes (install proprietary DKMS)" \
+    "No"
+case "$NVIDIA" in
+    "Yes (install proprietary DKMS)") NVIDIA="yes" ;;
+    "No")                             NVIDIA="no" ;;
+    *)                                NVIDIA="auto" ;;
+esac
+
 # Root encryption (LUKS).
 ENC="no"
 if confirm_yes "Encrypt the root filesystem (LUKS)?" n; then
@@ -220,8 +234,8 @@ VIRT="no"
 confirm_yes "Install the virtualization stack (QEMU/KVM + libvirt + virt-manager GUI)?" n && VIRT="yes"
 
 if [[ "$DRY" == "1" ]]; then
-    printf '{"disk":"%s","mode":"%s","esp_size":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","kernel":"%s","kernel_params":"%s","encryption":"%s","hyprland":"%s","desktop":"%s","agents":"%s","virtualization":"%s"}\n' \
-        "$DISK" "$MODE" "$ESP_SIZE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$KERNEL" "$KERNEL_PARAMS" "$ENC" "$HYPR" "$DESKTOP" "$AGENTS" "$VIRT"
+    printf '{"disk":"%s","mode":"%s","esp_size":"%s","hostname":"%s","username":"%s","language":"%s","locale":"%s","keyboard":"%s","timezone":"%s","profile":"%s","bootloader":"%s","kernel":"%s","nvidia":"%s","kernel_params":"%s","encryption":"%s","hyprland":"%s","desktop":"%s","agents":"%s","virtualization":"%s"}\n' \
+        "$DISK" "$MODE" "$ESP_SIZE" "$HOST" "$USER" "$LANG_CODE" "$LOCALE" "$KEYMAP" "$TIMEZONE" "$PROFILE" "$BOOT" "$KERNEL" "$NVIDIA" "$KERNEL_PARAMS" "$ENC" "$HYPR" "$DESKTOP" "$AGENTS" "$VIRT"
     exit 0
 fi
 
@@ -238,7 +252,7 @@ else
 fi
 
 cat > "$OUT" <<EOF
-{"disk":"$DISK","mode":"$MODE","esp_size":"$ESP_SIZE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","backend":"$BACKEND","bootloader":"$BOOT","kernel":"$KERNEL","kernel_params":"$KERNEL_PARAMS","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","desktop":"$DESKTOP","agents":"$AGENTS","virtualization":"$VIRT"}
+{"disk":"$DISK","mode":"$MODE","esp_size":"$ESP_SIZE","hostname":"$HOST","username":"$USER","password":"$PASS","language":"$LANG_CODE","locale":"$LOCALE","keyboard":"$KEYMAP","timezone":"$TIMEZONE","profile":"$PROFILE","backend":"$BACKEND","bootloader":"$BOOT","kernel":"$KERNEL","nvidia":"$NVIDIA","kernel_params":"$KERNEL_PARAMS","encryption":"$ENC","luks_password":"$LUKS_PASS","hyprland":"$HYPR","desktop":"$DESKTOP","agents":"$AGENTS","virtualization":"$VIRT"}
 EOF
 chmod 600 "$OUT"
 echo "configuration written to $OUT"

@@ -51,6 +51,7 @@ ESP_SIZE="$(jget esp_size)";          ESP_SIZE="${ESP_SIZE:-2}"
 ESP_OVERRIDE="$(jget esp)"
 MIN_SIZE="$(jget min_size)";          MIN_SIZE="${MIN_SIZE:-20}"
 KERNEL="$(jget kernel)";              KERNEL="${KERNEL:-linux}"
+NVIDIA="$(jget nvidia)";              NVIDIA="${NVIDIA:-no}"
 KERNEL_PARAMS="$(jget kernel_params)"
 BACKEND="$(jget backend)"
 BACKEND="${X_INSTALL_BACKEND:-${BACKEND:-pacman}}"
@@ -70,6 +71,10 @@ esac
 case "$KERNEL" in
     linux|linux-lts|linux-zen|linux-hardened|linux-rt|linux-rt-lts|linux-x|linux-x-mainline) ;;
     *) echo "installer: unsupported kernel '$KERNEL' (linux|linux-lts|linux-zen|linux-hardened|linux-rt|linux-rt-lts|linux-x|linux-x-mainline)" >&2; exit 1 ;;
+esac
+case "$NVIDIA" in
+    auto|yes|no) ;;
+    *) echo "installer: invalid nvidia '$NVIDIA' (auto|yes|no)" >&2; exit 1 ;;
 esac
 KERNEL_LOCAL=0
 case "$KERNEL" in
@@ -97,6 +102,7 @@ if [[ "$DRY" == "1" ]]; then
     echo "  language:  $LANG_CODE ($LOCALE)  keyboard: $KEYMAP  timezone: $TIMEZONE"
     echo "  profile:   $PROFILE"
     echo "  kernel:    $KERNEL"
+    echo "  nvidia:    $NVIDIA"
     echo "  bootloader:$BOOT"
     echo "  backend:   $BACKEND"
     echo "  encryption:$ENC   desktop:$DESKTOP   agents:$AGENTS   virtualization:$VIRT"
@@ -331,6 +337,69 @@ install_local_x_kernel_pacman() {
     rm -f "$MNT/root/$(basename "$main")" "$MNT/root/$(basename "$headers")"
     arch-chroot "$MNT" bash -c 'for m in /usr/lib/modules/*; do [ -d "$m" ] && depmod -a "$(basename "$m")"; done' || true
     arch-chroot "$MNT" mkinitcpio -P || true
+}
+
+nvidia_gpu_present() {
+    command -v lspci >/dev/null 2>&1 || return 1
+    lspci 2>/dev/null | grep -qiE 'vga.*nvidia|3d.*nvidia'
+}
+
+install_nvidia_drivers() {
+    local headers
+    local -a pkgs=(nvidia-dkms nvidia-utils nvidia-settings opencl-nvidia
+                   egl-wayland libva-nvidia-driver)
+
+    headers="${KERNEL}-headers"
+    # A full install keeps Arch linux in addition to the selected kernel; DKMS
+    # needs headers for every installed kernel it should build against.
+    if [[ "$PROFILE" == "full" && "$KERNEL" != "linux" ]]; then
+        headers="$headers linux-headers"
+    fi
+    pkgs+=($headers)
+
+    echo "== NVIDIA DKMS for kernel $KERNEL"
+    if [[ "$KERNEL" == "linux-x-mainline" ]]; then
+        echo "warning: NVIDIA DKMS may not support linux-x-mainline yet" >&2
+    fi
+
+    if [[ "$BACKEND" == "xpm" ]]; then
+        arch-chroot "$MNT" xpm --no-alpm-hooks install --no-confirm --needed \
+            "${pkgs[@]}" || return 1
+    else
+        # The pacman backend seeds the target mirrorlist after this point.
+        if [[ -f /etc/pacman.d/mirrorlist ]]; then
+            install -Dm644 /etc/pacman.d/mirrorlist "$MNT/etc/pacman.d/mirrorlist"
+        fi
+        arch-chroot "$MNT" pacman -S --needed --noconfirm "${pkgs[@]}" || return 1
+    fi
+
+    # Keep the modules out of the display-manager race: load them in the
+    # initramfs, and add a oneshot unit that loads nvidia_drm before the DM.
+    install -d "$MNT/etc/modprobe.d"
+    printf 'options nvidia_drm modeset=1 fbdev=1\n' \
+        > "$MNT/etc/modprobe.d/nvidia.conf"
+    if ! grep -q 'nvidia_drm' "$MNT/etc/mkinitcpio.conf"; then
+        arch-chroot "$MNT" sed -i \
+            's/^MODULES=(\(.*\))/MODULES=(nvidia nvidia_modeset nvidia_uvm nvidia_drm \1)/' \
+            /etc/mkinitcpio.conf
+    fi
+    arch-chroot "$MNT" bash -c '
+        set -e
+        for k in /usr/lib/modules/*; do
+            [ -d "$k" ] || continue
+            dkms autoinstall -k "$(basename "$k")" || true
+        done
+    ' || true
+
+    install -Dm644 /root/x-installer/x-nvidia-ready.service \
+        "$MNT/etc/systemd/system/x-nvidia-ready.service"
+    arch-chroot "$MNT" systemctl enable x-nvidia-ready.service >/dev/null 2>&1 || true
+    ln -sfn /etc/systemd/system/x-nvidia-ready.service \
+        "$MNT/etc/systemd/system/multi-user.target.wants/x-nvidia-ready.service"
+
+    arch-chroot "$MNT" mkinitcpio -P || return 1
+    NVIDIA_CMDLINE="nvidia-drm.modeset=1 nvidia-drm.fbdev=1"
+    echo "== NVIDIA installed: modules in initramfs, DM ordering enabled"
 }
 
 cleanup() {
@@ -688,6 +757,16 @@ fi
 
 network_persist_to_target "$MNT"
 
+installer_progress "Configuring NVIDIA"
+if [[ "$NVIDIA" == "yes" ]] || { [[ "$NVIDIA" == "auto" ]] && nvidia_gpu_present; }; then
+    if ! install_nvidia_drivers; then
+        echo "warning: NVIDIA driver setup failed; the base system will still be installed." >&2
+        echo "warning: after boot, check 'dkms status' and the kernel headers before retrying." >&2
+    fi
+else
+    echo "== NVIDIA: $NVIDIA (skipped)"
+fi
+
 installer_progress "Base configuration"
 # SDDM's X theme uses Hack Nerd Font. Prefer the signed x-scripts payload so
 # future font/theme changes do not require an ISO rebuild; keep an inline
@@ -883,6 +962,7 @@ fi
 CMDROOT="root=UUID=$(blkid -s UUID -o value "$ROOT_DEV") rw rootflags=subvol=@"
 [[ "$ENC" == "yes" ]] && CMDROOT="cryptdevice=UUID=$LUKS_UUID:xroot root=/dev/mapper/xroot rw rootflags=subvol=@"
 [[ -n "$KERNEL_PARAMS" ]] && CMDROOT="$CMDROOT $KERNEL_PARAMS"
+[[ -n "${NVIDIA_CMDLINE:-}" ]] && CMDROOT="$CMDROOT $NVIDIA_CMDLINE"
 
 # Apply branding (os-release/GRUB hooks) BEFORE the bootloader step so a LUKS
 # cmdline written afterwards is not clobbered by x-release-apply.

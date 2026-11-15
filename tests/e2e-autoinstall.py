@@ -265,6 +265,7 @@ class E2E:
             f'"username":"{self.args.user}","password":"{self.args.password}",'
             f'"profile":"{self.args.profile}","bootloader":"{self.args.bootloader}",'
             f'"esp_size":"{self.args.esp_size}","kernel":"{self.args.kernel}",'
+            f'"nvidia":"{self.args.nvidia}",'
             f'"encryption":"{self.args.encryption}","hyprland":"{hypr}",'
             f'"desktop":"{desktop}","agents":"{agents}","virtualization":"{virt}",'
             f'"backend":"{self.args.backend}"{luks},'
@@ -528,6 +529,12 @@ class E2E:
                 f"! grep -qs 'xpm shell integration' /root/.bashrc /root/.zshrc "
                 f"/home/{user}/.bashrc /home/{user}/.zshrc"
             )
+        if self.args.nvidia == "yes":
+            log("checking NVIDIA DKMS payload and boot ordering")
+            self.assert_installed("nvidia-dkms")
+            self.expect_ok("grep -q 'options nvidia_drm modeset=1 fbdev=1' /etc/modprobe.d/nvidia.conf")
+            self.expect_ok("grep -q nvidia_drm /etc/mkinitcpio.conf")
+            self.expect_ok("systemctl is-enabled x-nvidia-ready.service")
         log("checking the created user's shell (zsh)")
         self.assert_installed("zsh")
         self.expect_ok(f'getent passwd {user} | cut -d: -f7 | grep -qx /usr/bin/zsh')
@@ -937,6 +944,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
             "linux-x-mainline",
         ),
         help="kernel installed by the installer (JSON kernel=...)",
+    )
+    ap.add_argument(
+        "--nvidia",
+        default="no",
+        choices=("auto", "yes", "no"),
+        help="NVIDIA driver selection seeded as nvidia=...",
     )
     ap.add_argument(
         "--multikernel",
