@@ -1,0 +1,17 @@
+[Unit]
+Description=X Linux first-boot generation
+Documentation=man:x(1)
+ConditionPathExists=/var/lib/x/generations/0001/manifest.json
+ConditionPathExists=!/var/lib/x/first-boot.done
+After=local-fs.target
+Before=getty@tty1.service display-manager.service
+Wants=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/x/firstboot-generation
+RemainAfterExit=yes
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

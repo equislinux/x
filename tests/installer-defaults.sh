@@ -116,6 +116,12 @@ check "target pseudo filesystems are unmounted before genfstab" \
     bash -c "awk 'index(\$0, \"xpm_unbind_pseudo || exit 1\") {u=NR} /^genfstab / {g=NR} END {exit !(u && g && u < g)}' '$INST'"
 check "the xpm backend finalizes the target before genfstab" \
     bash -c "grep -q 'depmod -a' '$INST' && grep -q 'mkinitcpio -P' '$INST'"
+check "the installer ships a first-boot generation script" \
+    bash -c "test -x '$SRC/airootfs/root/x-installer/firstboot-generation.sh' && grep -q 'x gen new --reason first-boot' '$SRC/airootfs/root/x-installer/firstboot-generation.sh'"
+check "the installer ships and enables the first-boot service" \
+    bash -c "test -f '$SRC/airootfs/root/x-installer/x-firstboot-generation.service' && grep -q 'ExecStart=/usr/local/lib/x/firstboot-generation' '$SRC/airootfs/root/x-installer/x-firstboot-generation.service' && grep -q 'x-firstboot-generation.service' '$INST'"
+check "e2e expects the post-first-boot generation" \
+    bash -c "grep -q 'INSTALL_GENERATION = \"0001\"' '$SRC/tests/e2e-autoinstall.py' && grep -q 'FIRST_BOOT_GENERATION = \"0002\"' '$SRC/tests/e2e-autoinstall.py'"
 check "e2e harness exposes --backend" \
     grep -q -- '"--backend"' "$SRC/tests/e2e-autoinstall.py"
 check "e2e harness exposes --esp-size" \

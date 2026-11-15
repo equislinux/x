@@ -212,7 +212,12 @@ están.
     `/var/lib/x/generations/0001` y las entries de arranque (systemd-boot
     `loader/entries/x-gen-0001.conf`, GRUB `custom.cfg`). Es la base para
     rollbacks y restores granulares; ver `generations.md`.
-16. **Limpieza**: al salir se desmontan los sistemas de archivos, se cierra el
+16. **Generación de primer arranque**: el instalador habilita
+    `x-firstboot-generation.service`. En el primer arranque registra la
+    generación `0002` después de que systemd termine de arrancar, capturando
+    los servicios y cambios de `/etc` del primer arranque. `0002` pasa a ser
+    el default; `0001` queda como baseline de instalación.
+17. **Limpieza**: al salir se desmontan los sistemas de archivos, se cierra el
     mapeo LUKS si está abierto y se elimina el JSON de instalación.
 
 Un mensaje indica que la instalación ha terminado; reinicia y retira el medio

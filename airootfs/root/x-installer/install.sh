@@ -995,6 +995,18 @@ fi
 
 # First generation: snapshot of the installed system + manifest (base for
 # rollbacks and granular restores; see scripts/docs/en/generations.md).
+# The first boot creates a second generation after systemd and first-boot
+# setup have finished, so the normal "verify" path compares against a
+# post-boot snapshot instead of the install-time baseline.
+installer_progress "Scheduling first-boot generation"
+install -Dm755 /root/x-installer/firstboot-generation.sh \
+    "$MNT/usr/local/lib/x/firstboot-generation"
+install -Dm644 /root/x-installer/x-firstboot-generation.service \
+    "$MNT/etc/systemd/system/x-firstboot-generation.service"
+arch-chroot "$MNT" systemctl enable x-firstboot-generation.service >/dev/null 2>&1 || true
+ln -sfn /etc/systemd/system/x-firstboot-generation.service \
+    "$MNT/etc/systemd/system/multi-user.target.wants/x-firstboot-generation.service"
+
 installer_progress "Creating first generation"
 echo "== first generation"
 if arch-chroot "$MNT" test -x /usr/bin/x; then

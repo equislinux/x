@@ -56,6 +56,11 @@ generation 0001 is the live `/@` subvol (not a `/.snapshots` fork).
 During installation `x setup` runs with `X_GEN_SKIP=1`: the first generation is
 created once, by the installer, after branding and bootloader are in place.
 
+Generation `0001` is the installation baseline. On first boot a one-shot
+`x-firstboot-generation.service` records generation `0002` after systemd has
+finished starting and makes it the default; `0001` remains the rollback
+baseline.
+
 ## Requirements
 
 - `btrfs-progs` in the target (already in `packages.x86_64` and the live

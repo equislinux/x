@@ -12,8 +12,9 @@ Automates the full unattended path in QEMU:
      installer exit code; fails on known error markers.
   4. Powers the guest off cleanly via ACPI.
   5. Boots the installed disk, logs in on the serial console (ttyS0) and
-     asserts `x gen status` (running/default = 0001) and `x gen verify`
-     (live system matches generation 0001).
+     asserts `x gen status` (running = install generation, default = the
+     first-boot generation) and `x gen verify` (live system matches the
+     first-boot generation).
 
 Everything is local: this is the repeatable harness for the VM validation
 door. It needs no GitHub Actions and no root on the host (QEMU/KVM only).
@@ -47,7 +48,8 @@ WORKSPACE = X_DIR.parent
 OVMF_CODE = Path("/usr/share/edk2/x64/OVMF_CODE.4m.fd")
 OVMF_VARS = Path("/usr/share/edk2/x64/OVMF_VARS.4m.fd")
 
-RUNNING_ID = "0001"
+INSTALL_GENERATION = "0001"
+FIRST_BOOT_GENERATION = "0002"
 
 
 class E2EError(RuntimeError):
@@ -626,19 +628,22 @@ class E2E:
         if self.console.expect_opt(r"[Pp]assword[^\n]*:", 10):
             self.console.send(f"{self.args.password}\n")
         _, seg = self.console.expect(r"E2E_STATUS _END", 90)
-        if not re.search(r"running:\s+" + RUNNING_ID, seg):
-            raise E2EError(f"x gen status does not show running={RUNNING_ID}:\n{seg}")
-        if not re.search(r"default:\s+" + RUNNING_ID, seg):
-            raise E2EError(f"x gen status does not show default={RUNNING_ID}:\n{seg}")
-        log(f"status OK: running/default = {RUNNING_ID}")
+        if not re.search(r"running:\s+" + INSTALL_GENERATION, seg):
+            raise E2EError(f"x gen status does not show running={INSTALL_GENERATION}:\n{seg}")
+        if not re.search(r"default:\s+" + FIRST_BOOT_GENERATION, seg):
+            raise E2EError(f"x gen status does not show default={FIRST_BOOT_GENERATION}:\n{seg}")
+        log(f"status OK: running={INSTALL_GENERATION}, default={FIRST_BOOT_GENERATION}")
 
-        self.console.send("sudo x gen verify; echo E2E_VERIFY\" \"_END\n")
+        # The first-boot generation is the default for the next boot, but the
+        # current boot still runs the install generation. Verify the snapshot
+        # that was just recorded from this live system.
+        self.console.send(f"sudo x gen verify {FIRST_BOOT_GENERATION}; echo E2E_VERIFY\" \"_END\n")
         if self.console.expect_opt(r"[Pp]assword[^\n]*:", 10):
             self.console.send(f"{self.args.password}\n")
         _, seg = self.console.expect(r"E2E_VERIFY _END", 180)
-        if f"live system matches generation {RUNNING_ID}" not in seg:
+        if f"live system matches generation {FIRST_BOOT_GENERATION}" not in seg:
             raise E2EError(f"x gen verify did not report a clean match:\n{seg}")
-        log(f"verify OK: live system matches generation {RUNNING_ID}")
+        log(f"verify OK: live system matches generation {FIRST_BOOT_GENERATION}")
 
         # Regression: generations recorded by the package hooks must never
         # freeze /var/lib/pacman/db.lck (it exists during the transaction).

@@ -204,7 +204,12 @@ are required; the remaining keys have sensible defaults when absent.
     `/var/lib/x/generations/0001` and the boot entries (systemd-boot
     `loader/entries/x-gen-0001.conf`, GRUB `custom.cfg`). This is the base for
     rollbacks and granular restores; see `generations.md`.
-16. **Cleanup**: on exit, mounts are unmounted, the LUKS mapping is closed if
+16. **First-boot generation**: the installer enables
+    `x-firstboot-generation.service`. On first boot it records generation
+    `0002` after systemd finishes starting, capturing first-boot service and
+    `/etc` changes. `0002` becomes the default; `0001` stays as the install
+    baseline.
+17. **Cleanup**: on exit, mounts are unmounted, the LUKS mapping is closed if
     open, and the install JSON is removed.
 
 A message tells you the installation is complete; reboot and remove the

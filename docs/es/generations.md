@@ -65,6 +65,13 @@ Durante la instalación `x setup` corre con `X_GEN_SKIP=1`: la primera
 generación la crea una sola vez el instalador, después del branding y el
 gestor de arranque.
 
+La generación `0001` es el **baseline de instalación**. En el primer arranque,
+un servicio one-shot `x-firstboot-generation.service` espera a que el sistema
+termine de arrancar, registra la generación `0002` (motivo `first-boot`) y la
+deja como default. Así quedan capturados los servicios y cambios de `/etc` que
+systemd aplica en el primer arranque, y `x gen verify` compara contra una
+instantánea post-arranque. `0001` sigue disponible como baseline de rollback.
+
 ## Requisitos
 
 - `btrfs-progs` en el destino (ya está en `packages.x86_64` y en la lista de

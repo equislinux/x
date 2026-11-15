@@ -22,6 +22,9 @@ graphical installer; Calamares was removed).
    - Creates the **first generation** (`x gen new --reason install`): snapshot
      base for rollbacks and granular restores, plus its boot entry (see
      `generations.md`).
+   - Enables a one-shot first-boot service that records generation `0002`
+     after systemd finishes starting, capturing first-boot service and `/etc`
+     changes; `0002` becomes the default and `0001` stays as the baseline.
 
 ## Variables
 
