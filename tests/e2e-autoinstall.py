@@ -649,7 +649,7 @@ class E2E:
         # freeze /var/lib/pacman/db.lck (it exists during the transaction).
         log("checking that hooks do not freeze pacman's db.lck")
         if self.args.backend == "xpm":
-            seg = self.sudo_expect("xpm --no-alpm-hooks install --no-confirm --needed tree", "E2E_PKG", 300)
+            seg = self.sudo_expect("xpm install --no-confirm --needed tree", "E2E_PKG", 300)
             if "installed successfully" not in seg:
                 raise E2EError(f"xpm install did not report success:\n{seg[-800:]}")
             self.assert_installed("tree")
@@ -660,8 +660,12 @@ class E2E:
             self.console.expect(r"E2E_PKG _END", 300)
         self.console.send("sudo x gen list | tail -3; echo E2E_GENLIST\" \"_END\n")
         _, seg_list = self.console.expect(r"E2E_GENLIST _END", 60)
-        if "0002" not in seg_list:
-            raise E2EError(f"the package hooks did not record a new generation:\n{seg_list[-600:]}")
+        package_ids = re.findall(r"^(\d{4})\b", seg_list, re.M)
+        if not any(int(generation) > int(FIRST_BOOT_GENERATION) for generation in package_ids):
+            raise E2EError(
+                f"the package hooks did not record a generation after "
+                f"{FIRST_BOOT_GENERATION}:\n{seg_list[-600:]}"
+            )
         self.console.send("sudo find /.snapshots -name 'db.*' -print; echo E2E_LOCK\" \"_END\n")
         _, seg = self.console.expect(r"E2E_LOCK _END", 90)
         if re.search(r"/\.snapshots/\S*db\.lck", seg):
@@ -720,7 +724,7 @@ class E2E:
         for pkg in ("cowsay", "zip", "htop", "ncdu", "bmon"):
             if self.args.backend == "xpm":
                 seg = self.sudo_expect(
-                    f"xpm --no-alpm-hooks install --no-confirm --needed {pkg}",
+                    f"xpm install --no-confirm --needed {pkg}",
                     f"E2E_PKG_{pkg}",
                     600,
                 )
@@ -738,7 +742,9 @@ class E2E:
             "E2E_KERNELS",
             60,
         )
-        kernel_dirs = set(re.findall(r"(?:linux|default)-[0-9a-f]{16}", seg))
+        kernel_dirs = set(
+            re.findall(r"([A-Za-z0-9_.-]+-[0-9a-f]{16})", seg)
+        )
         if len(kernel_dirs) != 1:
             raise E2EError(
                 f"expected one shared kernel copy for {len(all_ids)} generations, "
