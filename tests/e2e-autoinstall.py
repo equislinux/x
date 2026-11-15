@@ -531,7 +531,7 @@ class E2E:
             )
         if self.args.nvidia == "yes":
             log("checking NVIDIA DKMS payload and boot ordering")
-            self.assert_installed("nvidia-dkms")
+            self.assert_installed_any("nvidia-dkms", "nvidia-open-dkms")
             self.expect_ok("grep -q 'options nvidia_drm modeset=1 fbdev=1' /etc/modprobe.d/nvidia.conf")
             self.expect_ok("grep -q nvidia_drm /etc/mkinitcpio.conf")
             self.expect_ok("systemctl is-enabled x-nvidia-ready.service")

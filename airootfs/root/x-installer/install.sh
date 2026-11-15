@@ -363,14 +363,17 @@ install_nvidia_drivers() {
     fi
 
     if [[ "$BACKEND" == "xpm" ]]; then
-        arch-chroot "$MNT" xpm --no-alpm-hooks install --no-confirm --needed \
+        # Let the dkms ALPM hook run; X's generation hook is suppressed by
+        # X_GEN_SKIP because this transaction runs before the bootloader and
+        # the first generation exist.
+        arch-chroot "$MNT" env X_GEN_SKIP=1 xpm install --no-confirm --needed \
             "${pkgs[@]}" || return 1
     else
         # The pacman backend seeds the target mirrorlist after this point.
         if [[ -f /etc/pacman.d/mirrorlist ]]; then
             install -Dm644 /etc/pacman.d/mirrorlist "$MNT/etc/pacman.d/mirrorlist"
         fi
-        arch-chroot "$MNT" pacman -S --needed --noconfirm "${pkgs[@]}" || return 1
+        arch-chroot "$MNT" env X_GEN_SKIP=1 pacman -S --needed --noconfirm "${pkgs[@]}" || return 1
     fi
 
     # Keep the modules out of the display-manager race: load them in the
