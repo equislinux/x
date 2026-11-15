@@ -493,10 +493,11 @@ class E2E:
             "E2E_ESP_BYTES",
             60,
         )
-        matches = re.findall(r"(?m)^\s*(\d+)\s*$", seg)
+        # The serial console may prepend OSC/ANSI escapes to the size line.
+        matches = [int(value) for value in re.findall(r"\b\d{9,}\b", seg)]
         if not matches:
             raise E2EError(f"could not read the ESP size:\n{seg[-600:]}")
-        actual = int(matches[-1])
+        actual = matches[-1]
         if abs(actual - expected) > 8 * 1024**2:
             raise E2EError(
                 f"ESP size is {actual} bytes, expected {expected} "
