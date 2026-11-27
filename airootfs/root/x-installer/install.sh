@@ -9,6 +9,7 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/ui.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/network.sh"
 source "$(dirname "${BASH_SOURCE[0]}")/early-xpm.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/kernel-signatures.sh"
 
 JSON="${X_INSTALL_JSON:-/tmp/x-install.json}"
 DRY="${X_DRY:-0}"
@@ -299,12 +300,7 @@ install_kernel_xpm() {
             echo "installer: local $KERNEL packages are missing from the ISO ($dir)" >&2
             exit 1
         fi
-        if [[ ! -f "$main.sig" || ! -f "$headers.sig" ]]; then
-            echo "installer: local $KERNEL signatures are missing from the ISO ($dir)" >&2
-            exit 1
-        fi
-        gpg --batch --homedir "$gpgdir" --verify "$main.sig" "$main" >/dev/null
-        gpg --batch --homedir "$gpgdir" --verify "$headers.sig" "$headers" >/dev/null
+        verify_bundled_kernel_signatures "$gpgdir" "$main" "$headers" || exit 1
         echo "== installing $KERNEL from the bundled ISO packages (xpm)"
         X_GEN_SKIP=1 "${XPM_NO_HOOKS[@]}" --scriptlets=skip --no-confirm install --needed \
             --assume-installed initramfs=1 "$main" "$headers"
@@ -325,16 +321,18 @@ install_local_x_kernel_pacman() {
         echo "installer: local $KERNEL packages are missing from the ISO ($dir)" >&2
         exit 1
     fi
+    verify_bundled_kernel_signatures "$MNT/etc/xpm/gnupg" "$main" "$headers" || exit 1
     echo "== installing $KERNEL from the bundled ISO packages (pacman)"
     # pacman -U loads the enabled repos. On the pacman path the target
     # mirrorlist has not been copied yet, so seed it from the live environment.
     if [[ -f /etc/pacman.d/mirrorlist ]]; then
         install -Dm644 /etc/pacman.d/mirrorlist "$MNT/etc/pacman.d/mirrorlist"
     fi
-    cp -f "$main" "$headers" "$MNT/root/"
+    cp -f -- "$main" "$main.sig" "$headers" "$headers.sig" "$MNT/root/"
     arch-chroot "$MNT" pacman -U --noconfirm \
         "/root/$(basename "$main")" "/root/$(basename "$headers")" >/dev/null
-    rm -f "$MNT/root/$(basename "$main")" "$MNT/root/$(basename "$headers")"
+    rm -f -- "$MNT/root/$(basename "$main")" "$MNT/root/$(basename "$main").sig" \
+        "$MNT/root/$(basename "$headers")" "$MNT/root/$(basename "$headers").sig"
     arch-chroot "$MNT" bash -c 'for m in /usr/lib/modules/*; do [ -d "$m" ] && depmod -a "$(basename "$m")"; done' || true
     arch-chroot "$MNT" mkinitcpio -P || true
 }
