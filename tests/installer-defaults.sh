@@ -108,8 +108,23 @@ check "the xpm branch contains no pacman calls" \
     bash -c "! sed -n '/# XPM-BACKEND-BEGIN/,/# XPM-BACKEND-END/p' '$INST' | grep -Eq '(^|[^[:alnum:]_])(pacman|pacman-key|pacstrap|sync-pacman-db|import-pacman)([^[:alnum:]_]|$)'"
 check "the xpm local kernel path uses xpm, not pacman" \
     bash -c "! sed -n '/^install_local_x_kernel_xpm()/,/^}/p' '$INST' | grep -Eq '(^|[^[:alnum:]_])(pacman|pacman-key|pacstrap|sync-pacman-db|import-pacman)([^[:alnum:]_]|$)'"
-check "the xpm local kernel path verifies detached signatures" \
-    grep -q 'gpg --batch --homedir "\$gpgdir" --verify "\$main.sig" "\$main"' "$INST"
+check_kernel_signature_gate() {
+    local function_name="$1" install_pattern="$2"
+    awk -v name="$function_name" -v install="$install_pattern" '
+        $0 == name "() {" { inside = 1; next }
+        inside && /^}/ { exit }
+        inside && /verify_bundled_kernel_signatures .* \|\| exit 1/ { guarded = 1 }
+        inside && $0 ~ install { reached_install = 1; exit }
+        END { exit !(guarded && reached_install) }
+    ' "$INST"
+}
+
+check "the installer loads the bundled kernel signature helper" \
+    grep -Fq '/kernel-signatures.sh"' "$INST"
+check "xpm verifies bundled kernel signatures before installing" \
+    check_kernel_signature_gate install_kernel_xpm ' install --needed'
+check "pacman verifies bundled kernel signatures before installing" \
+    check_kernel_signature_gate install_local_x_kernel_pacman 'pacman -U --noconfirm'
 check "the pacman branch keeps pacstrap and pacman -U" \
     bash -c "sed -n '/# PACMAN-BACKEND-BEGIN/,/# PACMAN-BACKEND-END/p' '$INST' | grep -q 'pacstrap' && sed -n '/# PACMAN-BACKEND-BEGIN/,/# PACMAN-BACKEND-END/p' '$INST' | grep -q 'pacman -U'"
 check "the pacman backend still initializes pacman-key" \
